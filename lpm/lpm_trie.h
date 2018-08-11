@@ -31,28 +31,28 @@ struct lpm_trie_key {
     uint8_t data[0];
 };
 
-static struct lpm_trie_node *lpm_trie_node_alloc(const struct lpm_trie *trie,
+struct lpm_trie_node *lpm_trie_node_alloc(const struct lpm_trie *trie,
 						 const void *value);
 
-static struct lpm_trie *trie_alloc(size_t max_entries, size_t max_prefixlen,
+struct lpm_trie *lpm_trie_alloc(size_t max_entries, size_t max_prefixlen,
                                     size_t data_size, size_t value_size);
 
-static void trie_free(struct lpm_trie *trie);
+void trie_free(struct lpm_trie *trie);
 
-static inline int extract_bit(const uint8_t *data, size_t index);
+int extract_bit(const uint8_t *data, size_t index);
 
-static size_t longest_prefix_match(const struct lpm_trie *trie,
+size_t longest_prefix_match(const struct lpm_trie *trie,
 				   const struct lpm_trie_node *node,
                    const struct lpm_trie_key *key);
 
-static void *trie_lookup_elem(struct lpm_trie *trie, void *_key);
+void *trie_lookup_elem(struct lpm_trie *trie, void *_key);
 
-static int trie_update_elem(struct lpm_trie *trie, void *_key, void *value,
+int trie_update_elem(struct lpm_trie *trie, void *_key, void *value,
                             uint64_t flags);
 
-static int trie_delete_elem(struct lpm_trie *trie, void *_key);
+int trie_delete_elem(struct lpm_trie *trie, void *_key);
 
-static int trie_get_next_key(struct lpm_trie *trie, void *_key, void *_next_key);
+int trie_get_next_key(struct lpm_trie *trie, void *_key, void *_next_key);
 
 /**
  * fls - find last (most-significant) bit set

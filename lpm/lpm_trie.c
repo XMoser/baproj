@@ -1,11 +1,12 @@
 #include "lpm_trie.h"
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <stddef.h>
 
-static struct lpm_trie_node *lpm_trie_node_alloc(const struct lpm_trie *trie,
+struct lpm_trie_node *lpm_trie_node_alloc(const struct lpm_trie *trie,
 						 const void *value)
 {
 	struct lpm_trie_node *node;
@@ -27,7 +28,7 @@ static struct lpm_trie_node *lpm_trie_node_alloc(const struct lpm_trie *trie,
 	return node;
 }
 
-static struct lpm_trie *trie_alloc(size_t max_entries, size_t max_prefixlen,
+struct lpm_trie *lpm_trie_alloc(size_t max_entries, size_t max_prefixlen,
                                     size_t data_size, size_t value_size)
 {
     if(max_entries == 0 || (data_size == 0 && value_size == 0))
@@ -35,21 +36,20 @@ static struct lpm_trie *trie_alloc(size_t max_entries, size_t max_prefixlen,
 
     struct lpm_trie *trie = malloc(sizeof(struct lpm_trie));
 
+	trie->root = NULL;
     trie->n_entries = 0;
     trie->max_entries = max_entries;
     trie->max_prefixlen = max_prefixlen;
     trie->data_size = data_size;
     trie->value_size = value_size;
 
-    trie->root = lpm_trie_node_alloc(trie, NULL);
-
     return trie;
 }
 
 
-static void trie_free(struct lpm_trie *trie)
+void trie_free(struct lpm_trie *trie)
 {
-	struct lpm_trie_node /*__rcu*/ **slot;
+	struct lpm_trie_node **slot;
 	struct lpm_trie_node *node;
 
 	/* Always start at the root and walk down to a node that has no
@@ -85,12 +85,12 @@ out:
     free(trie);
 }
 
-static inline int extract_bit(const uint8_t *data, size_t index)
+int extract_bit(const uint8_t *data, size_t index)
 {
 	return !!(data[index / 8] & (1 << (7 - (index % 8))));
 }
 
-static size_t longest_prefix_match(const struct lpm_trie *trie,
+size_t longest_prefix_match(const struct lpm_trie *trie,
 				   const struct lpm_trie_node *node,
                    const struct lpm_trie_key *key)
 {
@@ -113,7 +113,7 @@ static size_t longest_prefix_match(const struct lpm_trie *trie,
 	return prefixlen;
 }
 
-static void *trie_lookup_elem(struct lpm_trie *trie, void *_key)
+void *trie_lookup_elem(struct lpm_trie *trie, void *_key)
 {
 	struct lpm_trie_node *node, *found = NULL;
 	struct lpm_trie_key *key = _key;
@@ -162,7 +162,7 @@ static void *trie_lookup_elem(struct lpm_trie *trie, void *_key)
 }
 
 /* Called from syscall or from eBPF program */
-static int trie_update_elem(struct lpm_trie *trie, void *_key, void *value,
+int trie_update_elem(struct lpm_trie *trie, void *_key, void *value,
                             uint64_t flags)
 {
 	struct lpm_trie_node *node, *im_node = NULL, *new_node = NULL;
@@ -282,7 +282,7 @@ out:
 	return ret;
 }
 
-static int trie_delete_elem(struct lpm_trie *trie, void *_key)
+int trie_delete_elem(struct lpm_trie *trie, void *_key)
 {
 	struct lpm_trie_key *key = _key;
 	struct lpm_trie_node **trim, **trim2;
@@ -367,7 +367,7 @@ out:
 	return ret;
 }
 
-static int trie_get_next_key(struct lpm_trie *trie, void *_key, void *_next_key)
+int trie_get_next_key(struct lpm_trie *trie, void *_key, void *_next_key)
 {
 	struct lpm_trie_node *node, *next_node = NULL, *parent, *search_root;
 	struct lpm_trie_key *key = _key, *next_key = _next_key;
