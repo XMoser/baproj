@@ -4,7 +4,12 @@
 #include <errno.h>
 #include <stddef.h>
 
-#define LPM_TREE_NODE_FLAG_IM 1
+#define LPM_TREE_NODE_FLAG_IM	1
+#define LPM_DATA_SIZE_MAX	256
+#define LPM_DATA_SIZE_MIN	1
+#define LPM_VAL_SIZE_MAX	(SIZE_MAX - LPM_DATA_SIZE_MAX - \
+				 				sizeof(struct lpm_trie_node))
+#define LPM_VAL_SIZE_MIN	1
 
 #define min(a, b) ((a<b) ? (a) : (b))
 

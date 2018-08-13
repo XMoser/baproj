@@ -26,7 +26,7 @@ struct lpm_trie_node *lpm_trie_node_alloc(const struct lpm_trie *trie,
 		       trie->value_size);
 
 	node->child[0] = NULL;
-	node->child[1] = NULL;		   
+	node->child[1] = NULL;
 
 	return node;
 }
@@ -34,7 +34,9 @@ struct lpm_trie_node *lpm_trie_node_alloc(const struct lpm_trie *trie,
 struct lpm_trie *lpm_trie_alloc(size_t max_entries, size_t max_prefixlen,
                                     size_t data_size, size_t value_size)
 {
-    if(max_entries == 0 || data_size == 0 || value_size == 0)
+    if(max_entries == 0 ||
+		data_size < LPM_DATA_SIZE_MIN || data_size > LPM_DATA_SIZE_MAX ||
+		value_size < LPM_VAL_SIZE_MIN || value_size > LPM_VAL_SIZE_MAX)
         return NULL;
 
     struct lpm_trie *trie = malloc(sizeof(struct lpm_trie));
