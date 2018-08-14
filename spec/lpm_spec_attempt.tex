@@ -1,0 +1,93 @@
+\documentclass{article}
+\usepackage{amsmath}
+\DeclareMathOperator{\update}{update}
+\DeclareMathOperator{\delete}{delete}
+\DeclareMathOperator{\matchlength}{matchLength}
+\DeclareMathOperator{\min}{min}
+\DeclareMathOperator{\lookup}{lookup}
+\begin{document}
+\section{Data structures}
+\subsection{Key}
+A key is the primary element used to identify entries in the lpm table. A key
+is represented as follows:
+\[
+    Key: K(D, p),
+\]
+where $p$, the prefix length, is a non-negative integer and
+$D = d_1d_2...d_pd_{p+1}...$, the data,  is a string of symbols.
+The sub-string $d_1...d_p$ is the prefix associated with the key $K$. If $p$ is
+equal to 0, the prefix is empty.
+\subsection{Table}
+A Table stores keys with the values associated to them. It is represented as
+follows:
+\[
+    Table: T(E, n),
+\]
+where $n$, the size of the table, is a non-negative integer.
+\[
+    E = \{(K_1, v_1), (K_2, v_2), ..., (K_n, v_n)\}
+\]
+is the collection of entries,
+where the $K_i$s are keys and the $v_i$s are the integer values associated with
+those keys.
+\section{Functions}
+\subsection{update}
+The $\update$ function inserts a new key-value pair in a table or updates the value
+associated with a key, if the key given in argument is already part of the
+entries in the table. It is specified as follows:
+\[
+    \update(T(E, n), (K, v)) = T(E', n'),
+\]
+where $(K, v) \in E'$ and\newline
+\[
+    n'=
+    \begin{cases}
+    n+1,   & \text{if } (K, \_) \notin E\\
+    n,  & \text{otherwise}
+    \end{cases}
+\]
+\subsection{delete}
+The $\delete$ function removes the entry corresponding to a specified key from the
+table. If the specified key is not in the entries of the table, it does nothing.
+It is specified as follows:
+\[
+    \delete(T(E, n), K) = T(E', n'),
+\]
+where $(K, \_) \notin E'$ and,
+\[
+    n'=
+    \begin{cases}
+    n-1,    & \text{if } (K, \_) \in E\\
+    n,              & \text{otherwise}
+    \end{cases}
+\]
+\subsection{lookup}
+lookup is the main function used to perform the actual longest prefix match. It
+takes as arguments a table and a key and returns the value associated with the
+table entry that best matches the key given as argument. For the purpose of
+specifying the lookup function, we introduce the $\matchlength$ function, defined
+as follows:
+\subsubsection{matchLength}
+The $\matchlength$ function takes two keys as parameters and returns the number of
+symbols in the first key matching the prefix in the second key.
+\[
+    \matchlength(K(D, p), K'(D', p')) = i,
+\]
+where $i$ is the largest integer such that
+\(
+d_1d_2...d_i = d'_1d'_2...d'_i,
+\)
+and $i \leq \min(p, p')$. \newline \newline
+With the $\matchlength$ function, we can specify the $\lookup$ function as
+follows:
+\[
+    \lookup(T(E, n), K) = v,
+\]
+where $(K', v) \in E$, and
+\[
+    \forall (K'', \_) \in E \text{ such that } K'' \neq K' :
+\]
+\[
+    \matchlength(K, K'') \leq \matchlength(K, K')
+\]
+\end{document}
