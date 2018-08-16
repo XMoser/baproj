@@ -47,23 +47,6 @@ struct lpm_key;
         }
     }
 
-    fixpoint bool lpm_entries_contains_key(list<pair<lpmKey, int>> entries,
-                                            lpmKey key)
-    {
-        switch(entries){
-            case nil:
-                return false;
-            case cons(h, t):
-                switch(h){ case(pair(k, v)):
-                    if(k == key){
-                        return true;
-                    }else{
-                        return lpm_entries_contains_key(t, key);
-                    }
-                }
-        }
-    }
-
     fixpoint bool lpmTable_contains_value(lpmTable tbl, int value){
         switch(tbl) { case lpmTable(entries, max):
             return exists(entries, (lpm_entry_contains_value)(value));
