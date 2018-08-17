@@ -8,26 +8,18 @@
 \DeclareMathOperator{\lookup}{lookup}
 \begin{document}
 \section{Data structures}
-\subsection{Key}
-A key is the primary element used to identify entries in the lpm table. A key
-is represented as follows:
-\[
-    Key: K(P, l),
-\]
-where $l$, the prefix length, is a non-negative integer and $P = p_1p_2...p_l$,
-the prefix, is a string of symbols.
 \subsection{Table}
-A Table stores keys with the values associated to them. It is represented as
+A Table stores prefixes with the values associated to them. It is represented as
 follows:
 \[
     Table: T(E, m),
 \]
 where $m$, the maximum number of entries in the table, is a positive integer and
 \[
-    E = \{(K_1, v_1), (K_2, v_2), ...\}
+    E = \{(P_1, v_1), (P_2, v_2), ...\}, P_i = p_{i1}p_{i2}p_{i3}...
 \]
-is the collection of entries, where the $K_i$s are keys and the $v_i$s are the
-integer values associated with those keys.
+is the collection of entries, where the $P_i$s, the prefixes are strings of
+symbols and the $v_i$s are the integer values associated with those prefixes.
 \section{Functions}
 \subsection{initialize}
 The $\initialize$ function creates a new empty table with a given maximum number
@@ -37,59 +29,60 @@ of entries. It is specified as follows:
 \]
 where $m \in \mathbb{N} \setminus \{0\}$ and $|E| = 0$.
 \subsection{update}
-The $\update$ function inserts a new key-value pair in a table or updates the value
-associated with a key, if the key given as argument is already part of the
-entries in the table. The table given as argument must have space for at least
-one more entry. The $\update$ function must not modify table entries that do not
-correspond to the key given as argument. It is specified as follows:
+The $\update$ function inserts a new prefix-value pair in a table or updates
+the value associated with a prefix, if the prefix given as argument is already
+part of the entries in the table. The table given as argument must have space
+for at least one more entry. The $\update$ function must not modify table
+entries that do not correspond to the prefix given as argument. It is specified
+as follows:
 \[
-    \update(T(E, m), (K, v)) = T(E', m),
+    \update(T(E, m), (P, v)) = T(E', m),
 \]
-where $|E| < m$, $(K, v) \in E'$,
-$E' \setminus \{(K, v)\} = E \setminus \{(K, \_)\}$ and
+where $|E| < m$, $(P, v) \in E'$,
+$E' \setminus \{(P, v)\} = E \setminus \{(P, \_)\}$ and
 \[
     |E'|=
     \begin{cases}
-    |E|+1,   & \text{if } (K, \_) \notin E\\
+    |E|+1,   & \text{if } (P, \_) \notin E\\
     |E|,  & \text{otherwise}
     \end{cases}
 \]
 \subsection{delete}
-The $\delete$ function removes the entry corresponding to a specified key from the
-table. The key given as argument must belong to the entries of the table given
+The $\delete$ function removes the entry corresponding to a specified prefix from the
+table. The prefix given as argument must belong to the entries of the table given
 as argument. The $\delete$ function must not modify entries in the table that do
-not correspond to the key given as argument. It is specified as follows:
+not correspond to the prefix given as argument. It is specified as follows:
 \[
-    \delete(T(E, m), K) = T(E', m),
+    \delete(T(E, m), P) = T(E', m),
 \]
-where $(K, \_) \in E$, $E' = E \setminus \{(K, \_)\}$ and $|E'| = |E|-1.
+where $(K, \_) \in E$, $E' = E \setminus \{(P, \_)\}$ and $|E'| = |E|-1.
 \subsection{lookup}
 lookup is the main function used to perform the actual longest prefix match. It
-takes as arguments a non-empty table and a key and returns the value associated
-with the table entry that best matches the key given as argument. For the
-purpose of specifying the $\lookup$ function, we introduce the $\matchlength$
-function, defined as follows:
+takes as arguments a non-empty table and a prefix and returns the value
+associated with the table entry that best matches the prefix given as argument.
+For the purpose of specifying the $\lookup$ function, we introduce the
+$\matchlength$ function, defined as follows:
 \subsubsection{matchLength}
-The $\matchlength$ function takes two keys as parameters and returns the number of
-symbols in the first key matching the prefix in the second key.
+The $\matchlength$ function takes two prefixes as parameters and returns the
+number of symbols in the first prefix matching the symbols in the second prefix.
 \[
-    \matchlength(K(P, l), K'(P', l')) = i,
+    \matchlength(P, P') = i,
 \]
 where $i$ is the largest integer such that
 \(
 p_1p_2...p_i = p'_1p'_2...p'_i,
 \)
-and $i \leq \min(l, l')$. \newline \newline
+and $i \leq \min(|P|, |P'|)$. \newline \newline
 With the $\matchlength$ function, we can specify the $\lookup$ function as
 follows:
 \[
-    \lookup(T(E, m), K) = v,
+    \lookup(T(E, m), P) = v,
 \]
-where $|E| > 0$, $(K', v) \in E$, and
+where $|E| > 0$, $(P', v) \in E$, and
 \[
-    \forall (K'', \_) \in E \text{ such that } K'' \neq K' :
+    \forall (P'', \_) \in E \text{ such that } P'' \neq P' :
 \]
 \[
-    \matchlength(K, K'') \leq \matchlength(K, K')
+    \matchlength(P, P'') \leq \matchlength(P, P')
 \]
 \end{document}
