@@ -1,19 +1,41 @@
+#include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stddef.h>
 
 #define TBL_LONG_OFFSET_MAX 256
 #define TBL_LONG_FACTOR 256
-#define TBL_24_INDEX_MASK 1 << 16
-#define TBL_24_PLEN_MASK 0x7C00
+#define TBL_LONG_MAX_ENTRIES 2 << 16
+#define TBL_LONG_PLEN_MASK 0xFF00
+#define TBL_LONG_VAL_MASK 0x00FF
+
+#define TBL_24_FLAG_MASK 1 << 15
+#define TBL_24_PLEN_MASK 0x7F00
+#define TBL_24_MAX_ENTRIES 2 << 24
+#define TBL_24_VAL_MASK 0x00FF
+
 
 struct tbl{
     uint16_t *tbl_24;
-    uint8_t *tbl_long;
-}
+    uint16_t *tbl_long;
+    size_t tbl_long_index;
+    size_t n_entries;
+    size_t max_entries;
+};
 
 struct key{
-    uint32_t data;
-    size_t prefixlen;
-}
+    uint8_t data[4];
+    uint8_t prefixlen;
+};
+
+//In header only for tests
+size_t extract_first_index(uint8_t *data);
+size_t extract_last_index(uint8_t *data);
+
+struct tbl *tbl_allocate(size_t max_entries);
+
+void tbl_free(struct tbl *tbl);
 
 int tbl_update_elem(struct tbl *_tbl, struct key *_key, uint8_t value);
 
