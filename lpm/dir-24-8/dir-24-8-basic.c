@@ -73,13 +73,15 @@ struct tbl *tbl_allocate(size_t max_entries)
     if(!tbl)
         return NULL;
 
-    uint16_t *tbl_24 = (uint16_t *) calloc(TBL_24_MAX_ENTRIES, sizeof(uint16_t));
+    uint16_t *tbl_24 = (uint16_t *) calloc(TBL_24_MAX_ENTRIES,
+                                            sizeof(uint16_t));
     if(!tbl_24){
         free(tbl);
         return NULL;
     }
 
-    uint16_t *tbl_long = (uint16_t *) calloc(TBL_LONG_MAX_ENTRIES, sizeof(uint16_t));
+    uint16_t *tbl_long = (uint16_t *) calloc(TBL_LONG_MAX_ENTRIES,
+                                                sizeof(uint16_t));
     if(!tbl_long){
         free(tbl_24);
         free(tbl);
@@ -123,7 +125,8 @@ int tbl_update_elem(struct tbl *_tbl, struct key *_key, uint8_t value)
         //fill all entries between first index and last index with value if
         //these entries don't have a longer prefix associated with them
         for(int i = first_index; i <= last_index; i++){
-            if(!entry_flag(tbl_24[i]) && tbl_24_entry_plen(tbl_24[i]) <= prefixlen)
+            if(!entry_flag(tbl_24[i]) &&
+                tbl_24_entry_plen(tbl_24[i]) <= prefixlen)
                 tbl_24[i] = value;
                 //record the length of the prefix associated with the entry
                 tbl_24[i] = tbl_24_entry_put_plen(tbl_24[i], prefixlen);
@@ -146,7 +149,8 @@ int tbl_update_elem(struct tbl *_tbl, struct key *_key, uint8_t value)
             tbl_24[tbl_24_index] = base_index;
             tbl_24[tbl_24_index] = entry_set_flag(tbl_24[tbl_24_index]);
             //record the prefix length associated with the entry
-            tbl_24[tbl_24_index] = tbl_24_entry_put_plen(tbl_24[tbl_24_index], prefixlen);
+            tbl_24[tbl_24_index] = tbl_24_entry_put_plen(tbl_24[tbl_24_index],
+                                                            prefixlen);
         }
 
         //The last byte in data is used as the starting offset for tbl_long
@@ -160,7 +164,8 @@ int tbl_update_elem(struct tbl *_tbl, struct key *_key, uint8_t value)
             if(tbl_long_entry_plen(tbl_long[index]) <= prefixlen){
                 tbl_long[index] = value;
                 //record length of the prefix associated with the entry
-                tbl_long[index] = tbl_long_entry_put_plen(tbl_long[index], prefixlen);
+                tbl_long[index] = tbl_long_entry_put_plen(tbl_long[index],
+                                                            prefixlen);
             }
         }
     }
