@@ -108,7 +108,7 @@ int tbl_update_elem(struct tbl *_tbl, struct key *_key, uint8_t value)
 {
     uint8_t prefixlen = _key->prefixlen;
     uint8_t *data = _key->data;
-    uint16_t *tbl_24 = _tbl->tbl_24;//Segfault
+    uint16_t *tbl_24 = _tbl->tbl_24;
     uint16_t *tbl_long = _tbl->tbl_long;
 
     if(_tbl->n_entries >= _tbl->max_entries)
@@ -170,5 +170,45 @@ int tbl_update_elem(struct tbl *_tbl, struct key *_key, uint8_t value)
         }
     }
 
+    return 0;
+}
+
+int tbl_delete_elem(struct tbl *_tbl, struct key *_key){
+    uint8_t prefixlen = _key->prefixlen;
+    uint8_t *data = _key->data;
+    uint16_t *tbl_24 = _tbl->tbl_24;
+    uint16_t *tbl_long = _tbl->tbl_long;
+
+    size_t tbl_24_index = extract_first_index(data);
+
+    if(entry_flag(tbl_24[tbl_24_index])) {
+        //tbl_24 contains a base index for tbl_long
+        size_t base_index = tbl_24[tbl_24_index]
+        uint8_t offset = data[3];
+
+        //remove all entries in tbl_long that match the key in argument and have
+        //the same prefix length as the key in argument
+        for(int i = offset; i < TBL_LONG_OFFSET_MAX; i++){
+            size_t index = base_index * TBL_LONG_FACTOR + i;
+            if(tbl_long_entry_plen(tbl_long[index]) == prefixlen){
+                tbl_long[index] = 0;
+            }
+        }
+
+        //then, remove the entry from tbl_24
+        tbl_24[tbl_24_index] = 0;
+    } else {
+        //tbl_24 contains the next hop, just remove entries from the tbl_24 that
+        //match the key given in argument and have the same prefix lentgh as the
+        //key in argument
+        for(int i = extract_first_index(data);
+            i <= extract_last_index(data); i++){
+            if(tbl_24tbl_24_entry_plen(tbl_24[i]) == prefixlen){
+                tbl_24[i] = 0;
+            }
+        }
+    }
+
+    tbl->n_entries --;
     return 0;
 }
