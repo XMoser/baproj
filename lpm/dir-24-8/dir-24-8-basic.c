@@ -106,13 +106,19 @@ void tbl_free(struct tbl *tbl)
 
 int tbl_update_elem(struct tbl *_tbl, struct key *_key, uint8_t value)
 {
+    if(!_tbl || !_key){
+        return -1;
+    }
+
     uint8_t prefixlen = _key->prefixlen;
     uint8_t *data = _key->data;
     uint16_t *tbl_24 = _tbl->tbl_24;
     uint16_t *tbl_long = _tbl->tbl_long;
 
-    if(_tbl->n_entries >= _tbl->max_entries)
+    if(!tbl_24 || !tbl_long || !data || prefixlen > TBL_24_PLEN_MAX ||
+        _tbl->n_entries >= _tbl->max_entries){
         return -1;
+    }
 
     _tbl->n_entries ++;
 
@@ -173,11 +179,20 @@ int tbl_update_elem(struct tbl *_tbl, struct key *_key, uint8_t value)
     return 0;
 }
 
-int tbl_delete_elem(struct tbl *_tbl, struct key *_key){
+int tbl_delete_elem(struct tbl *_tbl, struct key *_key)
+{
+    if(!_tbl || !_key){
+        return -1;
+    }
+
     uint8_t prefixlen = _key->prefixlen;
     uint8_t *data = _key->data;
     uint16_t *tbl_24 = _tbl->tbl_24;
     uint16_t *tbl_long = _tbl->tbl_long;
+
+    if(!tbl_24 || !tbl_long || !data || prefixlen > TBL_24_PLEN_MAX){
+        return -1;
+    }
 
     size_t tbl_24_index = extract_first_index(data);
 
@@ -213,11 +228,20 @@ int tbl_delete_elem(struct tbl *_tbl, struct key *_key){
     return 0;
 }
 
-int tbl_lookup_elem(struct tbl *_tbl, struct key *_key){
+int tbl_lookup_elem(struct tbl *_tbl, struct key *_key)
+{
+    if(!_tbl || !_key){
+        return -1;
+    }
+
     uint8_t prefixlen = _key->prefixlen;
     uint8_t *data = _key->data;
     uint16_t *tbl_24 = _tbl->tbl_24;
     uint16_t *tbl_long = _tbl->tbl_long;
+
+    if(!tbl_24 || !tbl_long || !data || prefixlen > TBL_24_PLEN_MAX){
+        return -1;
+    }
 
     size_t first_index = extract_first_index(data);
 

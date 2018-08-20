@@ -4,17 +4,20 @@
 #include <string.h>
 #include <stddef.h>
 
-#define TBL_LONG_OFFSET_MAX 256
-#define TBL_LONG_FACTOR 256
-#define TBL_LONG_MAX_ENTRIES 2 << 16
-#define TBL_LONG_PLEN_MASK 0xFF00
-#define TBL_LONG_VAL_MASK 0x00FF
+#define TBL_PLEN_MAX 32
 
 #define TBL_24_FLAG_MASK 1 << 15
 #define TBL_24_PLEN_MASK 0x7F00
 #define TBL_24_MAX_ENTRIES 2 << 24
 #define TBL_24_VAL_MASK 0x00FF
 #define TBL_24_PLEN_MAX 24
+
+#define TBL_LONG_OFFSET_MAX 256
+#define TBL_LONG_FACTOR 256
+#define TBL_LONG_MAX_ENTRIES 2 << 16
+#define TBL_LONG_PLEN_MASK 0xFF00
+#define TBL_LONG_VAL_MASK 0x00FF
+
 
 
 struct tbl{
