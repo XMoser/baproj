@@ -27,9 +27,14 @@ size_t extract_last_index(uint8_t *data)
     return index;
 }
 
-int entry_flag(uint16_t entry)
+int tbl_24_entry_flag(uint16_t entry)
 {
     return (entry & TBL_24_FLAG_MASK) >> 15;
+}
+
+uint16_t tbl_24_entry_set_flag(uint16_t entry)
+{
+    return entry | TBL_24_FLAG_MASK;
 }
 
 int tbl_24_entry_plen(uint16_t entry)
@@ -37,19 +42,14 @@ int tbl_24_entry_plen(uint16_t entry)
     return (entry & TBL_24_PLEN_MASK) >> 8;
 }
 
-int entry_value(uint16_t entry)
-{
-    return entry & TBL_24_VAL_MASK;
-}
-
 uint16_t tbl_24_entry_put_plen(uint16_t entry, uint8_t prefixlen)
 {
     return entry | ((prefixlen & (TBL_24_PLEN_MASK >> 8)) << 8);
 }
 
-uint16_t entry_set_flag(uint16_t entry)
+int tbl_24_entry_val(uint16_t entry)
 {
-    return entry | TBL_24_FLAG_MASK;
+    return entry & TBL_24_VAL_MASK;
 }
 
 int tbl_long_entry_plen(uint16_t entry)
@@ -125,7 +125,7 @@ int tbl_update_elem(struct tbl *_tbl, struct key *_key, uint8_t value)
         //fill all entries between first index and last index with value if
         //these entries don't have a longer prefix associated with them
         for(int i = first_index; i <= last_index; i++){
-            if(!entry_flag(tbl_24[i]) &&
+            if(!tbl_24_entry_flag(tbl_24[i]) &&
                 tbl_24_entry_plen(tbl_24[i]) <= prefixlen)
                 tbl_24[i] = value;
                 //record the length of the prefix associated with the entry
@@ -140,14 +140,14 @@ int tbl_update_elem(struct tbl *_tbl, struct key *_key, uint8_t value)
         //index and store it in the tbl_24
         size_t base_index;
         size_t tbl_24_index = extract_first_index(data);
-        if(entry_flag(tbl_24[tbl_24_index])){
-            base_index = entry_value(tbl_24[tbl_24_index]);
+        if(tbl_24_entry_flag(tbl_24[tbl_24_index])){
+            base_index = tbl_24_entry_val(tbl_24[tbl_24_index]);
         } else {
             //generate next index and store it in tbl_24
             base_index = _tbl->tbl_long_index;
             _tbl->tbl_long_index ++;
             tbl_24[tbl_24_index] = base_index;
-            tbl_24[tbl_24_index] = entry_set_flag(tbl_24[tbl_24_index]);
+            tbl_24[tbl_24_index] = tbl_24_entry_set_flag(tbl_24[tbl_24_index]);
             //record the prefix length associated with the entry
             tbl_24[tbl_24_index] = tbl_24_entry_put_plen(tbl_24[tbl_24_index],
                                                             prefixlen);
@@ -181,7 +181,7 @@ int tbl_delete_elem(struct tbl *_tbl, struct key *_key){
 
     size_t tbl_24_index = extract_first_index(data);
 
-    if(entry_flag(tbl_24[tbl_24_index])) {
+    if(tbl_24_entry_flag(tbl_24[tbl_24_index])) {
         //tbl_24 contains a base index for tbl_long
         size_t base_index = tbl_24[tbl_24_index]
         uint8_t offset = data[3];
@@ -203,7 +203,7 @@ int tbl_delete_elem(struct tbl *_tbl, struct key *_key){
         //key in argument
         for(int i = extract_first_index(data);
             i <= extract_last_index(data); i++){
-            if(tbl_24tbl_24_entry_plen(tbl_24[i]) == prefixlen){
+            if(tbl_24_entry_plen(tbl_24[i]) == prefixlen){
                 tbl_24[i] = 0;
             }
         }
@@ -224,7 +224,7 @@ int tbl_lookup_elem(struct tbl *_tbl, struct key *_key){
     if(prefixlen < TBL_24_PLEN_MAX){
         //the next hop is stored directly in tbl_24, just return the value in
         //the entry
-        return entry_value(tbl_24[first_index]);
+        return tbl_24_entry_val(tbl_24[first_index]);
     } else {
         //the value stored in tbl_24 is a base index for tbl_long, go find the
         //next hop in tbl_long
