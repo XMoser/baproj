@@ -212,3 +212,30 @@ int tbl_delete_elem(struct tbl *_tbl, struct key *_key){
     tbl->n_entries --;
     return 0;
 }
+
+int tbl_lookup_elem(struct tbl *_tbl, struct key *_key){
+    uint8_t prefixlen = _key->prefixlen;
+    uint8_t *data = _key->data;
+    uint16_t *tbl_24 = _tbl->tbl_24;
+    uint16_t *tbl_long = _tbl->tbl_long;
+
+    size_t first_index = extract_first_index(data);
+
+    if(prefixlen < TBL_24_PLEN_MAX){
+        //the next hop is stored directly in tbl_24, just return the value in
+        //the entry
+        return entry_value(tbl_24[first_index]);
+    } else {
+        //the value stored in tbl_24 is a base index for tbl_long, go find the
+        //next hop in tbl_long
+
+        //get the right tbl_long index from the value in tbl_24 and the data in
+        //the key argument
+        size_t base_index = tbl_24[first_index];
+        uint8_t offset = data[3];
+        size_t index = base_index * TBL_LONG_FACTOR + offset;
+
+        //return the value in the entry at the computed index
+        return tbl_long_entry_val(tbl_long[index]);
+    }
+}

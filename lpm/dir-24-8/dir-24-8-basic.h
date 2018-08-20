@@ -14,6 +14,7 @@
 #define TBL_24_PLEN_MASK 0x7F00
 #define TBL_24_MAX_ENTRIES 2 << 24
 #define TBL_24_VAL_MASK 0x00FF
+#define TBL_24_PLEN_MAX 24
 
 
 struct tbl{
