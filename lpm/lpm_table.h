@@ -5,24 +5,10 @@ struct lpm_prefix;
 //@ #include <listex.gh>
 
 /*@
-    fixpoint bool equals<t>(list<t> xs, list<t> ys){
-        switch(xs) {
-            case nil: return ys == nil;
-            case cons(xs_h, xs_t):
-                switch(ys) {
-                    case nil: return false;
-                    case cons(ys_h, ys_t):
-                        return xs_h == ys_h && equals(xs_t, ys_t)
-                }
-        }
-    }
-@*/
-
-/*@
     inductive lpmTable = lpmTable(list<pair<list<int>, int>>, size_t);
 
-    predicate lpmTable_p(lpmTable tbl, struct lpm_table *lpm_table);
-    predicate lpmPrefix_p(list<int>, struct lpm_prefix *lpm_prefix);
+    predicate lpmTable_p(struct lpm_table *lpm_table, lpmTable tbl);
+    predicate lpmPrefix_p(struct lpm_prefix *lpm_prefix, list<int>);
 
     fixpoint size_t lpmTable_max(lpmTable tbl){
         switch(tbl) { case lpmTable(entries, max):
@@ -58,7 +44,7 @@ struct lpm_prefix;
                                         pair<list<int>, int> entry)
     {
         switch(entry) { case pair(p, val):
-            return equals(p, prefix);
+            return p == prefix;
         }
     }
 
@@ -97,7 +83,7 @@ struct lpm_prefix;
                 return entries;
             case cons(h, t):
                 switch(h) { case pair(p, v):
-                    if(equals(p, prefix)){
+                    if(p == prefix){
                         return lpm_entries_remove_prefix(t, prefix);
                     } else {
                         return cons(h, lpm_entries_remove_prefix(t, prefix));
@@ -114,7 +100,23 @@ struct lpm_prefix;
     }
 
     fixpoint int match_length(list<int> p1, list<int> p2){
-        return length(p2) - length(remove_all(p1, p2));
+        return match_length_aux(p1, p2, 0);
+    }
+
+    fixpoint int match_length_aux(list<int> p1, list<int> p2, int acc){
+        switch(p1) {
+            case nil: return acc;
+            case cons(h1, t1):
+                switch(p2) {
+                    case nil: return acc;
+                    case cons(h2, t2):
+                        if(h1 == h2){
+                            return match_length_aux(t1, t2, acc+1)
+                        } else {
+                            return acc;
+                        }
+                }
+        }
     }
 
     fixpoint lpmKey lpmTable_get_prefix_for_value(lpmTable tbl, int val){
@@ -154,15 +156,15 @@ int lpm_table_allocate(struct lpm_table **table_out, size_t max_entries);
              *table_out |-> ?old_val; @*/
 /*@ ensures result == 0 ?
                 *table_out |-> ?tbl &*&
-                lpmTable_p(lpmTable_empty_fp(max_entries), tbl) :
+                lpmTable_p(tbl, lpmTable_empty_fp(max_entries)) :
                 *table_out |-> old_val; @*/
 
 int lpm_table_update_elem(struct lpm_table *table, struct lpm_prefix *prefix,
                             int value);
-/*@ requires lpmTable_p(?old_tbl, table) &*&
+/*@ requires lpmTable_p(table, ?old_tbl) &*&
               lpmTable_n_entries(old_tbl) < lpmTable_max(old_tbl); @*/
-/*@ ensures lpmTable_p(?new_tbl, table) &*&
-            lpmPrefix_p(?p, prefix) &*&
+/*@ ensures lpmTable_p(table, ?new_tbl) &*&
+            lpmPrefix_p(prefix, ?p) &*&
             lpmTable_contains_entry(new_tbl, pair(p, value)) &*&
             lpmTable_remove_entry(new_tbl, pair(p, value)) ==
                 lpmTable_remove_prefix(old_tbl, p) &*&
@@ -172,17 +174,17 @@ int lpm_table_update_elem(struct lpm_table *table, struct lpm_prefix *prefix,
             @*/
 
 int lpm_table_delete_elem(struct lpm_table *table, struct lpm_prefix *prefix);
-/*@ requires lpmTable_p(?old_tbl, table) &*&
-             lpmPrefix_p(?p, prefix) &*&
+/*@ requires lpmTable_p(table, ?old_tbl) &*&
+             lpmPrefix_p(prefix, ?p) &*&
              lpmTable_contains_prefix(old_tbl, p); @*/
-/*@ ensures lpmTable_p(?new_tbl, table) &*&
+/*@ ensures lpmTable_p(table, ?new_tbl) &*&
             new_tbl == lpmTable_remove_prefix(old_tbl, p) &*&
             lpmTable_n_entries(new_tbl) == lpmTable_n_entries(old_tbl) - 1; @*/
 
 int lpm_table_lookup(struct lpm_table *table, struct lpm_prefix *prefix);
-/*@ requires lpmTable_p(?tbl, table) &*&
+/*@ requires lpmTable_p(table, ?tbl) &*&
              lpmTable_n_entries(tbl) > 0; @*/
-/*@ ensures lpmPrefix_p(?p, prefix) &*&
+/*@ ensures lpmPrefix_p(prefix, ?p) &*&
             lpmTable_contains_value(tbl, result) &*&
             forall(lpmTable_entries(tbl),
                     (prefix_lower_matchlength)
