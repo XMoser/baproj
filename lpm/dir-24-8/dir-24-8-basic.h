@@ -34,8 +34,8 @@ struct key{
 };
 
 //In header only for tests
-size_t extract_first_index(uint8_t *data);
-size_t extract_last_index(uint8_t *data);
+size_t tbl_24_extract_first_index(uint8_t *data);
+size_t tbl_24_extract_last_index(struct key *key);
 
 struct tbl *tbl_allocate(size_t max_entries);
 

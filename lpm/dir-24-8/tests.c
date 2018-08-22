@@ -83,10 +83,10 @@ int test_update_elem()
         goto out;
     printf("##### Inserted first entry #####\n");
 
-    size_t index = extract_first_index(key_1->data);
+    size_t index = tbl_24_extract_first_index(key_1->data);
     print_tbl_24_entry(tbl, index);
 
-    index = extract_last_index(key_1->data);
+    index = tbl_24_extract_last_index(key_1);
     print_tbl_24_entry(tbl, index);
 
     printf("##### Inserting second entry #####\n");
@@ -95,7 +95,7 @@ int test_update_elem()
         goto out;
     printf("##### Inserted second entry #####\n");
 
-    index = extract_first_index(key_2->data);
+    index = tbl_24_extract_first_index(key_2->data);
     print_tbl_24_entry(tbl, index);
     index = 191;
     print_tbl_long_entry(tbl, index);
@@ -110,7 +110,7 @@ int test_update_elem()
         goto out;
     printf("##### Inserted third key #####\n");
 
-    index = extract_first_index(key_3->data);
+    index = tbl_24_extract_first_index(key_3->data);
     print_tbl_24_entry(tbl, index);
     index = 0;
     print_tbl_long_entry(tbl, index);

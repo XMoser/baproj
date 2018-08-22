@@ -5,7 +5,7 @@
 #include <string.h>
 #include <stddef.h>
 
-size_t extract_first_index(uint8_t *data)
+size_t tbl_24_extract_first_index(uint8_t *data)
 {
     size_t index = data[0];
     index <<= 8;
@@ -16,15 +16,73 @@ size_t extract_first_index(uint8_t *data)
     return index;
 }
 
-size_t extract_last_index(uint8_t *data)
+size_t tbl_24_extract_last_index(struct key *key)
 {
-    size_t index = data[0];
-    index <<= 8;
-    index |= data[1];
-    index <<= 8;
-    index |= 0xFF;
+    uint8_t *data = key->data;
+    size_t prefixlen = key->prefixlen;
+
+    size_t index = tbl_24_extract_first_index(data);
+
+    if(prefixlen < TBL_24_PLEN_MAX){
+        size_t fill = 1;
+        for(int i = 1; i < TBL_24_PLEN_MAX - prefixlen; i++){
+            fill <<= 1;
+            fill |= 1;
+        }
+        //printf("fill: %ld\n", fill);
+        index |= fill;
+    }
 
     return index;
+}
+
+uint8_t *tbl_24_make_data_from_index(size_t index)
+{
+    uint8_t data[4];
+
+    data[0] = index >> 16;
+    data[1] = (index << 8) >> 16;
+    data[2] = (index << 16) >> 16;
+    data[3] = 0;
+}
+
+int tbl_24_entry_plen(uint16_t entry)
+{
+    return (entry & TBL_24_PLEN_MASK) >> 8;
+}
+
+uint8_t *tbl_24_is_last_index(size_t index, struct tbl *tbl)
+{
+    uint16_t *tbl_24 = tbl->tbl_24;
+    size_t prefixlen = tbl_24_entry_plen(tbl_24[index]);
+
+    size_t mask = 1;
+    for(int i = 1; i < TBL_24_PLEN_MAX - prefixlen; i++){
+        mask <<= 1;
+        mask |= 1;
+    }
+
+    size_t res = index & mask;//Has to be only ones
+    if(res == (2 << (TBL_24_PLEN_MAX - prefixlen)) - 1){
+        return tbl_24_make_data_from_index(index);
+    } else {
+        return NULL;
+    }
+}
+
+uint16_t tbl_24_find_replacement(uint8_t *data, struct tbl *tbl)
+{
+    uint16_t *tbl_24 = tbl->tbl_24;
+
+    size_t first = tbl_24_extract_first_index(data);
+    size_t current = first - 1;
+
+    uint8_t *current_data;
+    while((current_data = tbl_24_is_last_index(current, tbl))){
+        current = tbl_24_extract_first_index(current_data) - 1;
+    }
+
+    return tbl_24[current];
 }
 
 int tbl_24_entry_flag(uint16_t entry)
@@ -35,11 +93,6 @@ int tbl_24_entry_flag(uint16_t entry)
 uint16_t tbl_24_entry_set_flag(uint16_t entry)
 {
     return entry | TBL_24_FLAG_MASK;
-}
-
-int tbl_24_entry_plen(uint16_t entry)
-{
-    return (entry & TBL_24_PLEN_MASK) >> 8;
 }
 
 uint16_t tbl_24_entry_put_plen(uint16_t entry, uint8_t prefixlen)
@@ -107,6 +160,7 @@ void tbl_free(struct tbl *tbl)
 int tbl_update_elem(struct tbl *_tbl, struct key *_key, uint8_t value)
 {
     if(!_tbl || !_key){
+        //printf("Invalid table or key\n");
         return -1;
     }
 
@@ -115,8 +169,9 @@ int tbl_update_elem(struct tbl *_tbl, struct key *_key, uint8_t value)
     uint16_t *tbl_24 = _tbl->tbl_24;
     uint16_t *tbl_long = _tbl->tbl_long;
 
-    if(!tbl_24 || !tbl_long || !data || prefixlen > TBL_24_PLEN_MAX ||
+    if(!tbl_24 || !tbl_long || !data || prefixlen > TBL_PLEN_MAX ||
         _tbl->n_entries >= _tbl->max_entries){
+        //printf("Invalid secondary tables or prefixlen\n");
         return -1;
     }
 
@@ -125,8 +180,8 @@ int tbl_update_elem(struct tbl *_tbl, struct key *_key, uint8_t value)
     //If prefixlen is smaller than 24, simply store the value in tbl_24, in
     //entries indexed from data[0...2] up to data[0].data[1].255
     if(prefixlen < 24){
-        size_t first_index = extract_first_index(data);
-        size_t last_index = extract_last_index(data);
+        size_t first_index = tbl_24_extract_first_index(data);
+        size_t last_index = tbl_24_extract_last_index(_key);
 
         //fill all entries between first index and last index with value if
         //these entries don't have a longer prefix associated with them
@@ -145,7 +200,7 @@ int tbl_update_elem(struct tbl *_tbl, struct key *_key, uint8_t value)
         //flag set to 1, use the stored value as base index, otherwise get a new
         //index and store it in the tbl_24
         size_t base_index;
-        size_t tbl_24_index = extract_first_index(data);
+        size_t tbl_24_index = tbl_24_extract_first_index(data);
         if(tbl_24_entry_flag(tbl_24[tbl_24_index])){
             base_index = tbl_24_entry_val(tbl_24[tbl_24_index]);
         } else {
@@ -190,15 +245,15 @@ int tbl_delete_elem(struct tbl *_tbl, struct key *_key)
     uint16_t *tbl_24 = _tbl->tbl_24;
     uint16_t *tbl_long = _tbl->tbl_long;
 
-    if(!tbl_24 || !tbl_long || !data || prefixlen > TBL_24_PLEN_MAX){
+    if(!tbl_24 || !tbl_long || !data || prefixlen > TBL_PLEN_MAX){
         return -1;
     }
 
-    size_t tbl_24_index = extract_first_index(data);
+    size_t tbl_24_index = tbl_24_extract_first_index(data);
 
     if(tbl_24_entry_flag(tbl_24[tbl_24_index])) {
         //tbl_24 contains a base index for tbl_long
-        size_t base_index = tbl_24[tbl_24_index]
+        size_t base_index = tbl_24[tbl_24_index];
         uint8_t offset = data[3];
 
         //remove all entries in tbl_long that match the key in argument and have
@@ -216,15 +271,18 @@ int tbl_delete_elem(struct tbl *_tbl, struct key *_key)
         //tbl_24 contains the next hop, just remove entries from the tbl_24 that
         //match the key given in argument and have the same prefix lentgh as the
         //key in argument
-        for(int i = extract_first_index(data);
-            i <= extract_last_index(data); i++){
+
+        uint16_t replacement = tbl_24_find_replacement(data, _tbl);
+
+        for(int i = tbl_24_extract_first_index(data);
+            i <= tbl_24_extract_last_index(_key); i++){
             if(tbl_24_entry_plen(tbl_24[i]) == prefixlen){
-                tbl_24[i] = 0;
+                tbl_24[i] = replacement;
             }
         }
     }
 
-    tbl->n_entries --;
+    _tbl->n_entries --;
     return 0;
 }
 
@@ -239,11 +297,11 @@ int tbl_lookup_elem(struct tbl *_tbl, struct key *_key)
     uint16_t *tbl_24 = _tbl->tbl_24;
     uint16_t *tbl_long = _tbl->tbl_long;
 
-    if(!tbl_24 || !tbl_long || !data || prefixlen > TBL_24_PLEN_MAX){
+    if(!tbl_24 || !tbl_long || !data || prefixlen > TBL_PLEN_MAX){
         return -1;
     }
 
-    size_t first_index = extract_first_index(data);
+    size_t first_index = tbl_24_extract_first_index(data);
 
     if(prefixlen < TBL_24_PLEN_MAX){
         //the next hop is stored directly in tbl_24, just return the value in
