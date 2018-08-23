@@ -127,9 +127,126 @@ out:
     return res;
 }
 
+int test_delete_elem()
+{
+    int res;
+    struct tbl *tbl = tbl_allocate(256);
+    if(!tbl)
+        return -1;
+
+    uint16_t *tbl_24 = tbl->tbl_24;
+    uint16_t *tbl_long = tbl->tbl_long;
+    if(!tbl_24 || !tbl_long){
+        free(tbl);
+        return -1;
+    }
+
+    uint8_t data_1[4] = {10, 54, 0, 0};
+    struct key *key_1 = allocate_key(data_1, 16);
+    if(!key_1){
+        tbl_free(tbl);
+        return -1;
+    }
+
+    uint8_t data_2[4] = {10, 54, 34, 192};
+    struct key *key_2 = allocate_key(data_2, 26);
+    if(!key_2){
+        free(key_1);
+        tbl_free(tbl);
+        return -1;
+    }
+
+    uint8_t data_3[4] = {10, 54, 34, 0};
+    struct key *key_3 = allocate_key(data_3, 24);
+    if(!key_3){
+        free(key_1);
+        free(key_2);
+        tbl_free(tbl);
+        return -1;
+    }
+
+    //Fill table manually, the update function is not tested here
+    uint8_t val_1 = 10;
+    uint8_t val_2 = 12;
+    uint8_t val_3 = 11;
+
+    uint16_t tbl_24_entry_1 = val_1;
+    tbl_24_entry_1 = tbl_24_entry_put_plen(tbl_24_entry_1, key_1->prefixlen);
+    size_t tbl_24_first_1 = tbl_24_extract_first_index(key_1->data);
+    size_t tbl_24_last_1 = tbl_24_extract_last_index(key_1);
+
+    uint16_t tbl_24_entry_2 = 0;
+    tbl_24_entry_2 = tbl_24_entry_put_plen(tbl_24_entry_2, key_2->prefixlen);
+    tbl_24_entry_2 = tbl_24_entry_set_flag(tbl_24_entry_2);
+    size_t tbl_24_first_2 = tbl_24_extract_first_index(key_2->data);
+    uint16_t tbl_long_entry_2 = val_2;
+    tbl_long_entry_2 = tbl_long_entry_put_plen(tbl_long_entry_2,
+                                                key_2->prefixlen);
+
+    uint16_t tbl_long_entry_3 = val_3;
+    tbl_long_entry_3 = tbl_long_entry_put_plen(tbl_long_entry_3,
+                                                key_3->prefixlen);
+
+    for(int i = tbl_24_first_1; i <= tbl_24_last_1; i ++){
+        tbl_24[i] = tbl_24_entry_1;
+    }
+
+    tbl_24[tbl_24_first_2] = tbl_24_entry_2;
+
+    for(int i = 0; i <= 191; i++){
+        tbl_long[i] = tbl_long_entry_3;
+    }
+
+    for(int i = 192; i <= 255; i++){
+        tbl_long[i] = tbl_long_entry_2;
+    }
+
+    //Table is filled, we can remove entries
+    printf("##### Deleting first entry #####\n");
+    res = tbl_delete_elem(tbl, key_1);
+    if(res)
+        goto out;
+    printf("##### Deleted first entry #####\n");
+    print_tbl_24_entry(tbl, tbl_24_first_1);
+    print_tbl_24_entry(tbl, tbl_24_first_2);
+    print_tbl_24_entry(tbl, tbl_24_last_1);
+
+    printf("##### Deleting second entry #####\n");
+    res = tbl_delete_elem(tbl, key_2);
+    if(res)
+        goto out;
+    printf("##### Deleted second entry #####\n");
+    print_tbl_24_entry(tbl, tbl_24_first_2);
+    print_tbl_long_entry(tbl, 192);
+    print_tbl_long_entry(tbl, 255);
+
+    printf("##### Deleting third entry #####\n");
+    res = tbl_delete_elem(tbl, key_3);
+    if(res)
+        goto out;
+    printf("##### Deleted third entry #####\n");
+    print_tbl_24_entry(tbl, tbl_24_first_2);
+    print_tbl_long_entry(tbl, 0);
+    print_tbl_long_entry(tbl, 255);
+
+out:
+    tbl_free(tbl);
+    free(key_1);
+    free(key_2);
+    free(key_3);
+    return 0;
+}
+
 int main()
 {
     int res = test_update_elem();
+    if(res){
+        printf("Something went wrong: %d\n", res);
+    } else {
+        printf("End of test\n");
+    }
+
+    res = test_delete_elem();
     if(res){
         printf("Something went wrong: %d\n", res);
     } else {

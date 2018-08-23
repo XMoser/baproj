@@ -29,7 +29,6 @@ size_t tbl_24_extract_last_index(struct key *key)
             fill <<= 1;
             fill |= 1;
         }
-        //printf("fill: %ld\n", fill);
         index |= fill;
     }
 
@@ -180,7 +179,7 @@ uint16_t tbl_long_find_replacement(struct key *key, struct tbl *tbl,
     uint8_t *data = key->data;
 
     uint8_t *current_data;
-    size_t current = tbl_long_extract_first_index(data, base_index);
+    size_t current = tbl_long_extract_first_index(data, base_index) -1;
     while(current >= base_index * TBL_LONG_FACTOR &&
             (current_data = tbl_long_is_last_index(current, tbl, base_index))){
                 current =
@@ -239,7 +238,6 @@ void tbl_free(struct tbl *tbl)
 int tbl_update_elem(struct tbl *_tbl, struct key *_key, uint8_t value)
 {
     if(!_tbl || !_key){
-        //printf("Invalid table or key\n");
         return -1;
     }
 
@@ -250,7 +248,6 @@ int tbl_update_elem(struct tbl *_tbl, struct key *_key, uint8_t value)
 
     if(!tbl_24 || !tbl_long || !data || prefixlen > TBL_PLEN_MAX ||
         _tbl->n_entries >= _tbl->max_entries){
-        //printf("Invalid secondary tables or prefixlen\n");
         return -1;
     }
 
@@ -331,23 +328,30 @@ int tbl_delete_elem(struct tbl *_tbl, struct key *_key)
 
     if(tbl_24_entry_flag(tbl_24[tbl_24_index])) {
         //tbl_24 contains a base index for tbl_long
-        size_t base_index = tbl_24[tbl_24_index];
+        size_t base_index = tbl_24_entry_val(tbl_24[tbl_24_index]);
         uint8_t offset = data[3];
 
         //remove all entries in tbl_long that match the key in argument and have
         //the same prefix length as the key in argument
-
         uint16_t replacement = tbl_long_find_replacement(_key, _tbl, base_index);
 
-        for(int i = offset; i < TBL_LONG_OFFSET_MAX; i++){
-            size_t index = base_index * TBL_LONG_FACTOR + i;
-            if(tbl_long_entry_plen(tbl_long[index]) == prefixlen){
-                tbl_long[index] = replacement;
+        size_t first_index = tbl_long_extract_first_index(data, base_index);
+        size_t last_index = tbl_long_extract_last_index(_key, base_index);
+
+        for(int i = first_index; i <= last_index; i++){
+            if(tbl_long_entry_plen(tbl_long[i]) == prefixlen){
+                tbl_long[i] = replacement;
             }
         }
 
         //then, remove the entry from tbl_24
-        tbl_24[tbl_24_index] = 0;
+        if(replacement != 0){
+            size_t rep_plen = tbl_long_entry_plen(replacement);
+            tbl_24[tbl_24_index] = tbl_24_entry_put_plen(tbl_24[tbl_24_index],
+                                                            rep_plen);
+        } else {
+            tbl_24[tbl_24_index] = 0;
+        }
     } else {
         //tbl_24 contains the next hop, just remove entries from the tbl_24 that
         //match the key given in argument and have the same prefix lentgh as the

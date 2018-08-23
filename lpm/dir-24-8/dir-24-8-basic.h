@@ -36,6 +36,9 @@ struct key{
 //In header only for tests
 size_t tbl_24_extract_first_index(uint8_t *data);
 size_t tbl_24_extract_last_index(struct key *key);
+uint16_t tbl_24_entry_put_plen(uint16_t entry, uint8_t prefixlen);
+uint16_t tbl_long_entry_put_plen(uint16_t entry, uint8_t prefixlen);
+uint16_t tbl_24_entry_set_flag(uint16_t entry);
 
 struct tbl *tbl_allocate(size_t max_entries);
 
