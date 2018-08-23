@@ -70,24 +70,35 @@ uint8_t *tbl_24_is_last_index(size_t index, struct tbl *tbl)
     }
 }
 
+int tbl_24_entry_flag(uint16_t entry)
+{
+    return (entry & TBL_24_FLAG_MASK) >> 15;
+}
+
 uint16_t tbl_24_find_replacement(uint8_t *data, struct tbl *tbl)
 {
     uint16_t *tbl_24 = tbl->tbl_24;
 
     size_t first = tbl_24_extract_first_index(data);
     size_t current = first - 1;
-
     uint8_t *current_data;
-    while((current_data = tbl_24_is_last_index(current, tbl))){
-        current = tbl_24_extract_first_index(current_data) - 1;
+
+    while(current >= 0 &&
+            ((current_data = tbl_24_is_last_index(current, tbl)) ||
+                tbl_24_entry_flag(tbl_24[current]))){
+
+        if(tbl_24_is_last_index(current, tbl)){
+            current = tbl_24_extract_first_index(current_data) - 1;
+        } else if(tbl_24_entry_flag(tbl_24[current])){
+            current --;
+        }
+    }
+
+    if(current < 0){
+        return 0;
     }
 
     return tbl_24[current];
-}
-
-int tbl_24_entry_flag(uint16_t entry)
-{
-    return (entry & TBL_24_FLAG_MASK) >> 15;
 }
 
 uint16_t tbl_24_entry_set_flag(uint16_t entry)
