@@ -75,9 +75,13 @@ int tbl_24_entry_flag(uint16_t entry)
     return (entry & TBL_24_FLAG_MASK) >> 15;
 }
 
-uint16_t tbl_24_find_replacement(uint8_t *data, struct tbl *tbl)
+uint16_t tbl_24_find_replacement(struct key *key, struct tbl *tbl)
 {
+    if(key->prefixlen < 1)
+        return 0;
+
     uint16_t *tbl_24 = tbl->tbl_24;
+    uint8_t *data = key->data;
 
     size_t first = tbl_24_extract_first_index(data);
     size_t current = first - 1;
@@ -116,6 +120,26 @@ int tbl_24_entry_val(uint16_t entry)
     return entry & TBL_24_VAL_MASK;
 }
 
+size_t tbl_long_extract_first_index(uint8_t *data, size_t base_index)
+{
+    return base_index * TBL_LONG_FACTOR + data[3];
+}
+
+size_t tbl_long_extract_last_index(struct key *key, size_t base_index)
+{
+    uint8_t offset = key->data[3];
+    size_t prefixlen = key->prefixlen;
+
+    size_t fill = 1;
+    for(int i = 1; i < TBL_PLEN_MAX - prefixlen; i++){
+        fill <<= 1;
+        fill |= 1;
+    }
+    offset |= fill;
+
+    return base_index * TBL_LONG_FACTOR + offset;
+}
+
 int tbl_long_entry_plen(uint16_t entry)
 {
     return (entry & TBL_LONG_PLEN_MASK) >> 8;
@@ -124,6 +148,50 @@ int tbl_long_entry_plen(uint16_t entry)
 uint8_t tbl_long_entry_val(uint16_t entry)
 {
     return entry & TBL_LONG_VAL_MASK;
+}
+
+uint8_t *tbl_long_is_last_index(size_t index, struct tbl *tbl,
+                                size_t base_index)
+{
+    uint16_t *tbl_long = tbl->tbl_long;
+    size_t prefixlen = tbl_long_entry_plen(tbl_long[index]);
+
+    size_t mask = 1;
+    for(int i = 1; i < TBL_PLEN_MAX - prefixlen; i++){
+        mask <<= 1;
+        mask |= 1;
+    }
+
+    size_t res = index & mask;//Has to be only ones
+    if(res == (2 << (TBL_PLEN_MAX - prefixlen)) - 1){
+        return tbl_24_make_data_from_index(index);
+    } else {
+        return NULL;
+    }
+}
+
+uint16_t tbl_long_find_replacement(struct key *key, struct tbl *tbl,
+                                    size_t base_index)
+{
+    if(key->prefixlen < 25)
+        return 0;
+
+    uint16_t *tbl_long = tbl->tbl_long;
+    uint8_t *data = key->data;
+
+    uint8_t *current_data;
+    size_t current = tbl_long_extract_first_index(data, base_index);
+    while(current >= base_index * TBL_LONG_FACTOR &&
+            (current_data = tbl_long_is_last_index(current, tbl, base_index))){
+                current =
+                    tbl_long_extract_first_index(current_data, base_index) - 1;
+            }
+
+    if(current < base_index * TBL_LONG_FACTOR){
+        return 0;
+    } else {
+        return tbl_long[current];
+    }
 }
 
 uint16_t tbl_long_entry_put_plen(uint16_t entry, uint8_t prefixlen)
@@ -227,17 +295,16 @@ int tbl_update_elem(struct tbl *_tbl, struct key *_key, uint8_t value)
 
         //The last byte in data is used as the starting offset for tbl_long
         //indexes
-        uint8_t offset = data[3];
+        size_t first_index = tbl_long_extract_first_index(data, base_index);
+        size_t last_index = tbl_long_extract_last_index(_key, base_index);
 
         //Store value in tbl_long entries indexed from value*256+offset up to
         //value*256+255
-        for(int i = offset; i < TBL_LONG_OFFSET_MAX; i++){
-            int index = base_index * TBL_LONG_FACTOR + i;
-            if(tbl_long_entry_plen(tbl_long[index]) <= prefixlen){
-                tbl_long[index] = value;
+        for(int i = first_index; i <= last_index; i++){
+            if(tbl_long_entry_plen(tbl_long[i]) <= prefixlen){
+                tbl_long[i] = value;
                 //record length of the prefix associated with the entry
-                tbl_long[index] = tbl_long_entry_put_plen(tbl_long[index],
-                                                            prefixlen);
+                tbl_long[i] = tbl_long_entry_put_plen(tbl_long[i], prefixlen);
             }
         }
     }
@@ -269,10 +336,13 @@ int tbl_delete_elem(struct tbl *_tbl, struct key *_key)
 
         //remove all entries in tbl_long that match the key in argument and have
         //the same prefix length as the key in argument
+
+        uint16_t replacement = tbl_long_find_replacement(_key, _tbl, base_index);
+
         for(int i = offset; i < TBL_LONG_OFFSET_MAX; i++){
             size_t index = base_index * TBL_LONG_FACTOR + i;
             if(tbl_long_entry_plen(tbl_long[index]) == prefixlen){
-                tbl_long[index] = 0;
+                tbl_long[index] = replacement;
             }
         }
 
@@ -283,7 +353,7 @@ int tbl_delete_elem(struct tbl *_tbl, struct key *_key)
         //match the key given in argument and have the same prefix lentgh as the
         //key in argument
 
-        uint16_t replacement = tbl_24_find_replacement(data, _tbl);
+        uint16_t replacement = tbl_24_find_replacement(_key, _tbl);
 
         for(int i = tbl_24_extract_first_index(data);
             i <= tbl_24_extract_last_index(_key); i++){
