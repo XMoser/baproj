@@ -10,6 +10,9 @@
 #define LPM_VAL_SIZE_MAX	(SIZE_MAX - LPM_DATA_SIZE_MAX - \
 				 				sizeof(struct lpm_trie_node))
 #define LPM_VAL_SIZE_MIN	1
+#define LPM_DATA_SIZE 		4
+#define LPM_VALUE_SIZE		1
+#define LPM_PLEN_MAX		32
 
 #define min(a, b) ((a<b) ? (a) : (b))
 
@@ -19,28 +22,28 @@ struct lpm_trie_node {
 	struct lpm_trie_node *child[2];
 	uint32_t prefixlen;
 	uint32_t flags;
-	uint8_t data[0];
+	uint8_t data[LPM_DATA_SIZE];
+	uint8_t value[LPM_VALUE_SIZE];
 };
 
 struct lpm_trie {
 	struct lpm_trie_node *root;
 	size_t n_entries;
     size_t max_entries;
-	size_t max_prefixlen;
-	size_t data_size;
-    size_t value_size;
+	struct lpm_trie_node *node_mem_blocks;
+	struct lpm_trie_node **node_ptr_stack;
+	size_t next_ptr_index;
 };
 
 struct lpm_trie_key {
     uint32_t prefixlen;
-    uint8_t data[0];
+    uint8_t data[LPM_DATA_SIZE];
 };
 
-struct lpm_trie_node *lpm_trie_node_alloc(const struct lpm_trie *trie,
-						 const void *value);
+struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie,
+						 					const uint8_t *value);
 
-struct lpm_trie *lpm_trie_alloc(size_t max_entries, size_t max_prefixlen,
-                                    size_t data_size, size_t value_size);
+struct lpm_trie *lpm_trie_alloc(size_t max_entries);
 
 void trie_free(struct lpm_trie *trie);
 
@@ -50,10 +53,10 @@ size_t longest_prefix_match(const struct lpm_trie *trie,
 				   const struct lpm_trie_node *node,
                    const struct lpm_trie_key *key);
 
-void *trie_lookup_elem(struct lpm_trie *trie, void *_key);
+uint8_t *trie_lookup_elem(struct lpm_trie *trie, void *_key);
 
-int trie_update_elem(struct lpm_trie *trie, void *_key, void *value,
-                            uint64_t flags);
+int trie_update_elem(struct lpm_trie *trie, void *_key, uint8_t *value,
+					 uint64_t flags);
 
 int trie_delete_elem(struct lpm_trie *trie, void *_key);
 

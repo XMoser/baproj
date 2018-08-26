@@ -18,9 +18,9 @@ struct lpm_trie_key *lpm_trie_key_alloc(size_t prefixlen, uint8_t *data)
 //Print data stored in a node in as data[0].data[1]. ... /prefixlen
 void print_node_data(struct lpm_trie_node *node, struct lpm_trie *trie)
 {
-    for(int i = 0; i < trie->data_size; i++){
+    for(int i = 0; i < LPM_DATA_SIZE; i++){
         printf("%d", node->data[i]);
-        if(i < trie->data_size - 1)
+        if(i < LPM_DATA_SIZE - 1)
             printf(".");
     }
     printf("/%d\n", node->prefixlen);
@@ -31,9 +31,9 @@ void print_node(struct lpm_trie_node *node, struct lpm_trie *trie)
 {
     printf("=============================\n");
 
-    uint8_t *value = node->data + trie->data_size;
+    uint8_t *value = node->data + LPM_DATA_SIZE;
     printf("value: ");
-    for(int i = 0; i < trie->value_size; i++){
+    for(int i = 0; i < LPM_VALUE_SIZE; i++){
         printf("%d", value[i]);
     }
     printf("\n");
@@ -58,12 +58,11 @@ void print_node(struct lpm_trie_node *node, struct lpm_trie *trie)
 int test_update_elem()
 {
     size_t max_entries = 256;
-    size_t max_prefixlen = 32;
-    size_t data_size = 4;
-    size_t value_size = 1;
+    //size_t max_prefixlen = 32;
+    //size_t data_size = 4;
+    //size_t value_size = 1;
 
-    struct lpm_trie *trie = lpm_trie_alloc(max_entries, max_prefixlen,
-                                            data_size, value_size);
+    struct lpm_trie *trie = lpm_trie_alloc(max_entries);
 
     //Create keys for insertion
     uint8_t data_1[4] = {192, 168, 0, 0};
@@ -79,26 +78,26 @@ int test_update_elem()
 
     //Insert nodes
     printf("##### Inserting first node #####\n");
-    uint8_t value_1 = 1;
-    int res = trie_update_elem(trie, key_1, &value_1, flags);
+    uint8_t value_1[1] = {1};
+    int res = trie_update_elem(trie, key_1, value_1, flags);
     if(res)
         goto out;
 
     struct lpm_trie_node *node_1 = trie->root;
-    res = memcmp(node_1->data, key_1->data, data_size);
+    res = memcmp(node_1->data, key_1->data, LPM_DATA_SIZE);
     if(res)
         goto out;
 
     print_node(trie->root, trie);
 
     printf("##### Inserting second node ######\n");
-    uint8_t value_2 = 2;
-    res = trie_update_elem(trie, key_2, &value_2, flags);
+    uint8_t value_2[1] = {2};
+    res = trie_update_elem(trie, key_2, value_2, flags);
     if(res)
         goto out;
 
     struct lpm_trie_node *node_2 = trie->root->child[0];
-    res = memcmp(node_2->data, key_2->data, data_size);
+    res = memcmp(node_2->data, key_2->data, LPM_DATA_SIZE);
     if(res)
         goto out;
 
@@ -106,13 +105,13 @@ int test_update_elem()
     print_node(trie->root->child[0], trie);
 
     printf("##### Inserting third node #####\n");
-    uint8_t value_3 = 3;
-    res = trie_update_elem(trie, key_3, &value_3, flags);
+    uint8_t value_3[1] = {3};
+    res = trie_update_elem(trie, key_3, value_3, flags);
     if(res)
         goto out;
 
     struct lpm_trie_node *node_3 = trie->root->child[1];
-    res = memcmp(node_3->data, key_3->data, data_size);
+    res = memcmp(node_3->data, key_3->data, LPM_DATA_SIZE);
     if(res)
         goto out;
 
@@ -121,13 +120,13 @@ int test_update_elem()
     print_node(trie->root->child[1], trie);
 
     printf("##### Inserting fourth node #####\n");
-    uint8_t value_4 = 4;
-    res = trie_update_elem(trie, key_4, &value_4, flags);
+    uint8_t value_4[1] = {4};
+    res = trie_update_elem(trie, key_4, value_4, flags);
     if(res)
         goto out;
 
     struct lpm_trie_node *node_4 = trie->root->child[0]->child[1];
-    res = memcmp(node_4->data, key_4->data, data_size);
+    res = memcmp(node_4->data, key_4->data, LPM_DATA_SIZE);
     if(res)
         goto out;
 
@@ -150,25 +149,21 @@ out:
 int test_delete_elem()
 {
     size_t max_entries = 256;
-    size_t max_prefixlen = 32;
-    size_t data_size = 4;
-    size_t value_size = 1;
 
-    struct lpm_trie *trie = lpm_trie_alloc(max_entries, max_prefixlen,
-                                            data_size, value_size);
+    struct lpm_trie *trie = lpm_trie_alloc(max_entries);
 
     //Insert nodes manually, the insertion function is not tested here.
-    uint8_t value_1 = 1;
-    uint8_t value_2 = 2;
-    uint8_t value_3 = 3;
-    uint8_t value_4 = 4;
-    uint8_t value_im = 0;
+    uint8_t value_1[1] = {1};
+    uint8_t value_2[1] = {2};
+    uint8_t value_3[1] = {3};
+    uint8_t value_4[1] = {4};
+    uint8_t value_im[1] = {0};
 
-    struct lpm_trie_node *node_1 = lpm_trie_node_alloc(trie, &value_1);
-    struct lpm_trie_node *node_2 = lpm_trie_node_alloc(trie, &value_2);
-    struct lpm_trie_node *node_3 = lpm_trie_node_alloc(trie, &value_3);
-    struct lpm_trie_node *node_4 = lpm_trie_node_alloc(trie, &value_4);
-    struct lpm_trie_node *node_im = lpm_trie_node_alloc(trie, &value_im);
+    struct lpm_trie_node *node_1 = lpm_trie_node_alloc(trie, value_1);
+    struct lpm_trie_node *node_2 = lpm_trie_node_alloc(trie, value_2);
+    struct lpm_trie_node *node_3 = lpm_trie_node_alloc(trie, value_3);
+    struct lpm_trie_node *node_4 = lpm_trie_node_alloc(trie, value_4);
+    struct lpm_trie_node *node_im = lpm_trie_node_alloc(trie, value_im);
 
     uint8_t data_1[4] = {192, 168, 0, 0};
     uint8_t data_2[4] = {192, 168, 0, 0};
@@ -182,11 +177,11 @@ int test_delete_elem()
     node_4->prefixlen = 24;
     node_im->prefixlen = 23;
 
-    memcpy(node_1->data, data_1, trie->data_size);
-    memcpy(node_2->data, data_2, trie->data_size);
-    memcpy(node_3->data, data_3, trie->data_size);
-    memcpy(node_4->data, data_4, trie->data_size);
-    memcpy(node_im->data, data_im, trie->data_size);
+    memcpy(node_1->data, data_1, LPM_DATA_SIZE);
+    memcpy(node_2->data, data_2, LPM_DATA_SIZE);
+    memcpy(node_3->data, data_3, LPM_DATA_SIZE);
+    memcpy(node_4->data, data_4, LPM_DATA_SIZE);
+    memcpy(node_im->data, data_im, LPM_DATA_SIZE);
 
     node_im->flags = LPM_TREE_NODE_FLAG_IM;
 
@@ -205,7 +200,7 @@ int test_delete_elem()
     if(res)
         goto out;
 
-    res = memcmp(trie->root->child[0]->data, data_2, trie->data_size);
+    res = memcmp(trie->root->child[0]->data, data_2, LPM_DATA_SIZE);
     if(res)
         goto out;
 
@@ -239,25 +234,21 @@ out:
 void test_lookup_elem()
 {
     size_t max_entries = 256;
-    size_t max_prefixlen = 32;
-    size_t data_size = 4;
-    size_t value_size = 1;
 
-    struct lpm_trie *trie = lpm_trie_alloc(max_entries, max_prefixlen,
-                                            data_size, value_size);
+    struct lpm_trie *trie = lpm_trie_alloc(max_entries);
 
     //Insert nodes manually, the insertion function is not tested here.
-    uint8_t value_1 = 1;
-    uint8_t value_2 = 2;
-    uint8_t value_3 = 3;
-    uint8_t value_4 = 4;
-    uint8_t value_im = 0;
+    uint8_t value_1[1] = {1};
+    uint8_t value_2[1] = {2};
+    uint8_t value_3[1] = {3};
+    uint8_t value_4[1] = {4};
+    uint8_t value_im[1] = {0};
 
-    struct lpm_trie_node *node_1 = lpm_trie_node_alloc(trie, &value_1);
-    struct lpm_trie_node *node_2 = lpm_trie_node_alloc(trie, &value_2);
-    struct lpm_trie_node *node_3 = lpm_trie_node_alloc(trie, &value_3);
-    struct lpm_trie_node *node_4 = lpm_trie_node_alloc(trie, &value_4);
-    struct lpm_trie_node *node_im = lpm_trie_node_alloc(trie, &value_im);
+    struct lpm_trie_node *node_1 = lpm_trie_node_alloc(trie, value_1);
+    struct lpm_trie_node *node_2 = lpm_trie_node_alloc(trie, value_2);
+    struct lpm_trie_node *node_3 = lpm_trie_node_alloc(trie, value_3);
+    struct lpm_trie_node *node_4 = lpm_trie_node_alloc(trie, value_4);
+    struct lpm_trie_node *node_im = lpm_trie_node_alloc(trie, value_im);
 
     uint8_t data_1[4] = {192, 168, 0, 0};
     uint8_t data_2[4] = {192, 168, 0, 0};
@@ -271,11 +262,11 @@ void test_lookup_elem()
     node_4->prefixlen = 24;
     node_im->prefixlen = 23;
 
-    memcpy(node_1->data, data_1, trie->data_size);
-    memcpy(node_2->data, data_2, trie->data_size);
-    memcpy(node_3->data, data_3, trie->data_size);
-    memcpy(node_4->data, data_4, trie->data_size);
-    memcpy(node_im->data, data_im, trie->data_size);
+    memcpy(node_1->data, data_1, LPM_DATA_SIZE);
+    memcpy(node_2->data, data_2, LPM_DATA_SIZE);
+    memcpy(node_3->data, data_3, LPM_DATA_SIZE);
+    memcpy(node_4->data, data_4, LPM_DATA_SIZE);
+    memcpy(node_im->data, data_im, LPM_DATA_SIZE);
 
     node_im->flags = LPM_TREE_NODE_FLAG_IM;
 
@@ -296,16 +287,16 @@ void test_lookup_elem()
     struct lpm_trie_key *key_4 = lpm_trie_key_alloc(32, key_data_4);
 
     uint8_t *res_1 = trie_lookup_elem(trie, key_1);
-    printf("First result: %d\n", *res_1);//2
+    printf("First result: %d\n", res_1[0]);
 
     uint8_t *res_2 = trie_lookup_elem(trie, key_2);
-    printf("Second result: %d\n", *res_2);//4
+    printf("Second result: %d\n", res_2[0]);//4
 
     uint8_t *res_3 = trie_lookup_elem(trie, key_3);
-    printf("Third result: %d\n", *res_3);//3
+    printf("Third result: %d\n", res_3[0]);//3
 
     uint8_t *res_4 = trie_lookup_elem(trie, key_4);
-    printf("Fourths result: %d\n", *res_4);//3
+    printf("Fourths result: %d\n", res_4[0]);//3
 
     free(key_4);
     free(key_3);
