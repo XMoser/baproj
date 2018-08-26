@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
+//#include <errno.h>
 #include <stddef.h>
 
 #define LPM_TREE_NODE_FLAG_IM	1
@@ -42,25 +42,42 @@ struct lpm_trie_key {
 
 struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie,
 						 					const uint8_t *value);
+/*@ requires true; @*/
+/*@ ensures true; @*/
 
 struct lpm_trie *lpm_trie_alloc(size_t max_entries);
+/*@ requires true; @*/
+/*@ ensures true; @*/
 
 void trie_free(struct lpm_trie *trie);
+/*@ requires true; @*/
+/*@ ensures true; @*/
 
 int extract_bit(const uint8_t *data, size_t index);
+/*@ requires true; @*/
+/*@ ensures true; @*/
 
-size_t longest_prefix_match(const struct lpm_trie *trie,
-				   const struct lpm_trie_node *node,
-                   const struct lpm_trie_key *key);
+size_t longest_prefix_match(const struct lpm_trie_node *node,
+                   			const struct lpm_trie_key *key);
+/*@ requires true; @*/
+/*@ ensures true; @*/
 
 uint8_t *trie_lookup_elem(struct lpm_trie *trie, void *_key);
+/*@ requires true; @*/
+/*@ ensures true; @*/
 
 int trie_update_elem(struct lpm_trie *trie, void *_key, uint8_t *value,
 					 uint64_t flags);
+/*@ requires true; @*/
+/*@ ensures true; @*/
 
 int trie_delete_elem(struct lpm_trie *trie, void *_key);
+/*@ requires true; @*/
+/*@ ensures true; @*/
 
 int trie_get_next_key(struct lpm_trie *trie, void *_key, void *_next_key);
+/*@ requires true; @*/
+/*@ ensures true; @*/
 
 /**
  * fls - find last (most-significant) bit set
@@ -69,7 +86,9 @@ int trie_get_next_key(struct lpm_trie *trie, void *_key, void *_next_key);
  * This is defined the same way as ffs.
  * Note fls(0) = 0, fls(1) = 1, fls(0x80000000) = 32.
  */
-static __always_inline int fls(int x)
+static int fls(unsigned int x)
+/*@ requires true; @*/
+/*@ ensures true; @*/
 {
 	int r = 32;
 

@@ -3,20 +3,26 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
+//#include <errno.h>
 #include <stddef.h>
 
 struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie,
 											const uint8_t *value)
+/*@ requires true; @*/
+/*@ ensures true; @*/
 {
+	if(!trie)
+		return NULL;
+
+	//Find pointer to the next free memory block
 	struct lpm_trie_node **ptr_stack = trie->node_ptr_stack;
+	if(!ptr_stack)
+		return NULL;
+		
 	size_t ptr_index = trie->next_ptr_index;
 
+	//Allocate next index to the new node
 	struct lpm_trie_node *node = ptr_stack[ptr_index];
-    //node = malloc(sizeof(struct lpm_trie_node));
-
-	//if (!node)
-	//	return NULL;
 
 	node->flags = 0;
 
@@ -31,25 +37,32 @@ struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie,
 }
 
 void node_free(struct lpm_trie_node *ptr, struct lpm_trie *trie)
+/*@ requires true; @*/
+/*@ ensures true; @*/
 {
 	trie->next_ptr_index --;
 	trie->node_ptr_stack[trie->next_ptr_index] = ptr;
 }
 
 struct lpm_trie *lpm_trie_alloc(size_t max_entries)
+/*@ requires true; @*/
+/*@ ensures true; @*/
 {
-    if(max_entries == 0)
+    if(max_entries == 0 ||
+		max_entries > SIZE_MAX / sizeof(struct lpm_trie_node))
         return NULL;
 
     struct lpm_trie *trie = malloc(sizeof(struct lpm_trie));
 	if(!trie)
 		return trie;
 
+	//Allocate memory for the maximum number of nodes
 	struct lpm_trie_node *node_mem_blocks = calloc(sizeof(struct lpm_trie_node),
 													max_entries);
 	if(!node_mem_blocks)
 		return NULL;
 
+	//Allocate the stack of pointers to the node blocks
 	struct lpm_trie_node **node_ptr_stack = calloc(sizeof(struct lpm_trie_node*),
 													max_entries);
 	if(!node_ptr_stack)
@@ -64,7 +77,6 @@ struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 
 	//Initialize pointer stack
 	for(int i = 0; i < max_entries; i++){
-		//size_t offset = i * sizeof(struct lpm_trie_node);
 		trie->node_ptr_stack[i] = &(trie->node_mem_blocks[i]);
 	}
 
@@ -73,54 +85,25 @@ struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 
 
 void trie_free(struct lpm_trie *trie)
+/*@ requires true; @*/
+/*@ ensures true; @*/
 {
-	struct lpm_trie_node **slot;
-	struct lpm_trie_node *node;
-
-	/* Always start at the root and walk down to a node that has no
-	 * children. Then free that node, nullify its reference in the parent
-	 * and start over.
-	 */
-
-	/*
-	for (;;) {
-		slot = &trie->root;
-
-		for (;;) {
-			node = *slot;
-			if (!node)
-				goto out;
-
-			if (node->child[0]) {
-				slot = &node->child[0];
-				continue;
-			}
-
-			if (node->child[1]) {
-				slot = &node->child[1];
-				continue;
-			}
-
-            free(node);
-            *slot = NULL;
-			break;
-		}
-	}*/
-
-out:
 	free(trie->node_mem_blocks);
 	free(trie->node_ptr_stack);
     free(trie);
 }
 
 int extract_bit(const uint8_t *data, size_t index)
+/*@ requires true; @*/
+/*@ ensures true; @*/
 {
 	return !!(data[index / 8] & (1 << (7 - (index % 8))));
 }
 
-size_t longest_prefix_match(const struct lpm_trie *trie,
-				   const struct lpm_trie_node *node,
-                   const struct lpm_trie_key *key)
+size_t longest_prefix_match(const struct lpm_trie_node *node,
+                   			const struct lpm_trie_key *key)
+/*@ requires true; @*/
+/*@ ensures true; @*/
 {
 	size_t prefixlen = 0;
 	size_t i;
@@ -142,9 +125,14 @@ size_t longest_prefix_match(const struct lpm_trie *trie,
 }
 
 uint8_t *trie_lookup_elem(struct lpm_trie *trie, void *_key)
+/*@ requires true; @*/
+/*@ ensures true; @*/
 {
-	struct lpm_trie_node *node, *found = NULL;
+	struct lpm_trie_node *node;
+	struct lpm_trie_node *found = NULL;
 	struct lpm_trie_key *key = _key;
+	if(!key)
+		return NULL;
 
 	/* Start walking the trie from the root node ... */
 
@@ -156,7 +144,7 @@ uint8_t *trie_lookup_elem(struct lpm_trie *trie, void *_key)
 		 * If it's the maximum possible prefix for this trie, we have
 		 * an exact match and can return it directly.
 		 */
-		matchlen = longest_prefix_match(trie, node, key);
+		matchlen = longest_prefix_match(node, key);
 		if (matchlen == LPM_PLEN_MAX) {
 			found = node;
 			break;
@@ -192,8 +180,12 @@ uint8_t *trie_lookup_elem(struct lpm_trie *trie, void *_key)
 /* Called from syscall or from eBPF program */
 int trie_update_elem(struct lpm_trie *trie, void *_key, uint8_t *value,
                      uint64_t flags)
+/*@ requires true; @*/
+/*@ ensures true; @*/
 {
-	struct lpm_trie_node *node, *im_node = NULL, *new_node = NULL;
+	struct lpm_trie_node *node;
+	struct lpm_trie_node *im_node = NULL;
+	struct lpm_trie_node *new_node = NULL;
 	struct lpm_trie_node **slot;
 	struct lpm_trie_key *key = _key;
 	unsigned long irq_flags;
@@ -201,18 +193,19 @@ int trie_update_elem(struct lpm_trie *trie, void *_key, uint8_t *value,
 	size_t matchlen = 0;
 	int ret = 0;
 
-	if (key->prefixlen > LPM_PLEN_MAX)
-		return -EINVAL;
+	if (!trie || !trie->node_mem_blocks || !trie->node_ptr_stack ||
+		!key || key->prefixlen > LPM_PLEN_MAX)
+		return -1/*-EINVAL*/;
 
 	/* Allocate and fill a new node */
 	if (trie->n_entries == trie->max_entries) {
-		ret = -ENOSPC;
+		ret = -1/*-ENOSPC*/;
 		goto out;
 	}
 
 	new_node = lpm_trie_node_alloc(trie, value);
 	if (!new_node) {
-		ret = -ENOMEM;
+		ret = -1/*-ENOMEM*/;
 		goto out;
 	}
 
@@ -231,7 +224,7 @@ int trie_update_elem(struct lpm_trie *trie, void *_key, uint8_t *value,
 	slot = &trie->root;
 
 	while ((node = *slot)) {
-		matchlen = longest_prefix_match(trie, node, key);
+		matchlen = longest_prefix_match(node, key);
 
 		if (node->prefixlen != matchlen ||
 		    node->prefixlen == key->prefixlen ||
@@ -278,7 +271,7 @@ int trie_update_elem(struct lpm_trie *trie, void *_key, uint8_t *value,
 
 	im_node = lpm_trie_node_alloc(trie, NULL);
 	if (!im_node) {
-		ret = -ENOMEM;
+		ret = -1/*-ENOMEM*/;
 		goto out;
 	}
 
@@ -311,17 +304,22 @@ out:
 }
 
 int trie_delete_elem(struct lpm_trie *trie, void *_key)
+/*@ requires true; @*/
+/*@ ensures true; @*/
 {
 	struct lpm_trie_key *key = _key;
-	struct lpm_trie_node **trim, **trim2;
-	struct lpm_trie_node *node, *parent;
+	struct lpm_trie_node **trim;
+	struct lpm_trie_node **trim2;
+	struct lpm_trie_node *node;
+	struct lpm_trie_node *parent;
 	unsigned long irq_flags;
 	unsigned int next_bit;
 	size_t matchlen = 0;
 	int ret = 0;
 
-	if (key->prefixlen > LPM_PLEN_MAX)
-		return -EINVAL;
+	if (!trie || !trie->node_mem_blocks || !trie->node_ptr_stack ||
+		!key || key->prefixlen > LPM_PLEN_MAX)
+		return -1/*-EINVAL*/;
 
 	/* Walk the tree looking for an exact key/length match and keeping
 	 * track of the path we traverse.  We will need to know the node
@@ -333,7 +331,7 @@ int trie_delete_elem(struct lpm_trie *trie, void *_key)
 	trim2 = trim;
 	parent = NULL;
 	while ((node = *trim)) {
-		matchlen = longest_prefix_match(trie, node, key);
+		matchlen = longest_prefix_match(node, key);
 
 		if (node->prefixlen != matchlen ||
 		    node->prefixlen == key->prefixlen)
@@ -347,7 +345,7 @@ int trie_delete_elem(struct lpm_trie *trie, void *_key)
 
 	if (!node || node->prefixlen != key->prefixlen ||
 	    (node->flags & LPM_TREE_NODE_FLAG_IM)) {
-		ret = -ENOENT;
+		ret = -1/*-ENOENT*/;
 		goto out;
 	}
 
