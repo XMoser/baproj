@@ -1,6 +1,3 @@
-struct lpm_table;
-struct lpm_prefix;
-
 //@ #include <list.gh>
 //@ #include <listex.gh>
 
@@ -151,13 +148,13 @@ struct lpm_prefix;
 }
 @*/
 
-int lpm_table_allocate(struct lpm_table **table_out, size_t max_entries);
+int lpm_table_allocate(struct lpm_table *table_out, size_t max_entries);
 /*@ requires max_entries > 0 &*&
-             *table_out |-> ?old_val; @*/
+             table_out |-> ?old_val; @*/
 /*@ ensures result == 0 ?
-                *table_out |-> ?tbl &*&
+                table_out |-> ?tbl &*&
                 lpmTable_p(tbl, lpmTable_empty_fp(max_entries)) :
-                *table_out |-> old_val; @*/
+                table_out |-> old_val; @*/
 
 int lpm_table_update_elem(struct lpm_table *table, struct lpm_prefix *prefix,
                             int value);

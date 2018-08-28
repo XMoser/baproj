@@ -75,10 +75,6 @@ int trie_delete_elem(struct lpm_trie *trie, void *_key);
 /*@ requires true; @*/
 /*@ ensures true; @*/
 
-int trie_get_next_key(struct lpm_trie *trie, void *_key, void *_next_key);
-/*@ requires true; @*/
-/*@ ensures true; @*/
-
 /**
  * fls - find last (most-significant) bit set
  * @x: the word to search
