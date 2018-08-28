@@ -261,7 +261,7 @@ int trie_update_elem(struct lpm_trie *trie, void *_key, int value)
 		goto out;
 	}
 
-	im_node = lpm_trie_node_alloc(trie, 0);
+	im_node = lpm_trie_node_alloc(trie, -1);
 	if (!im_node) {
 		ret = -1;
 		goto out;
