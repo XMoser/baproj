@@ -10,7 +10,7 @@
 \begin{document}
 \section{Data structures}
 \subsection{Node}
-A node consists of a string of symbols called a prefix, an integer value
+A node consists of a string of bits called a prefix, an integer value
 associated with that prefix and two children nodes. It is represented
 as follows:
 \[
@@ -21,7 +21,7 @@ children nodes. A node can also be empty, in which case it is represented by the
 special symbol $nil$. A node without any children would then be represented as
 $N(nil, P, v, nil)$.
 \subsection{Trie}
-A trie consists of a special node called the root, an integer representing the
+A trie consists of a node called the root, an integer representing the
 number of nodes currently in the trie and another integer representing the
 maximum number of nodes that the trie can contain. It is represented as follows:
 \[
@@ -34,35 +34,42 @@ number of entries.
 \subsubsection{Trie membership}
 A node is part of a trie if there exists a path from the root to that node.
 \[
-    N \in T(R, n, m) \Leftrightarrow \exists RN_1N_2...N_jN
+    N \in T(R, n, \_) \Leftrightarrow \exists RN_1N_2...N_jN
 \]
 such that: $j \leq n-2$,
 \[
-    R(N_1, P, v, N_r) \text{ or } R(N_l, P, v, N_1)
+    R(N_1, \_, \_, \_) \text{ or } R(\_, \_, \_, N_1),
+\]
+\[
+    \forall i \in [2, j]: N_{i-1}(N_i, \_, \_, \_) \text{ or } N_{i-1}(\_, \_, \_, N_i)
 \]
 and
 \[
-    \forall i \in [2, j]: N_{i-1}(N_i, P, v, N_r) \text{ or } N_{i-1}(N_l, P, v, N_i)
+    N_j(N, \_, \_, \_) \text{ or } N_j(\_, \_, \_, N)
 \].
 \subsubsection{Match length}
 For the purpose of clarifying the trie specification, we introduce the
 $\matchlength$ function. $\matchlength$ takes a node and a prefix as argument and
-returns the number of symbols in the prefix given as argument that match the
-symbols in the node's prefix. It is defined as follows:
+returns the number of bits in the prefix given as argument that match the
+bits in the node's prefix. It is defined as follows:
 \[
-    \matchlength(N(N_l, P_N, v, N_r), P) = l \in \mathbb{N}
+    \matchlength(N(\_, P_N, \_, \_), P) = l \in \mathbb{N}
 \]
 where $l$ is the largest integer such that $p_{N1}p_{N2}...p_{Nl} = p_1p_2...p_l$
 and $l \leq min(|P_N|, |P|)$.
 \subsubsection{Trie condition}
 To preserve the useful structure of the trie, any node's children have to match
-the prefix stored in their parent entirely. This is expressed by the $\triecond$
-function, which is defined as follows.
+the prefix stored in their parent entirely, and the first bit beyond the
+parent's prefix has to be 0 for the left child and 1 for the right child.
+This is expressed by the $\triecond$ function, which is defined as follows.
 \[
     \triecond(T) =
 \]
 \[
-    \forall N(N_l, P, v, N_r) \in T: \matchlength(N_l, P) = \matchlength(N_r, P) = |P|
+    \forall N(N_l, P, \_, N_r) \in T: \matchlength(N_l, P) = \matchlength(N_r, P) = |P|
+\]
+\[
+    \text{ and } N_l(\_, P_l, \_, \_), p_{l|P|} = 0, \text{ } N_r(\_, P_r, \_, \_), p_{r|P|} = 1
 \]
 \section{Functions}
 \subsection{initialize}
@@ -115,7 +122,7 @@ It takes as argument a non-empty trie and a prefix and returns the value stored
 in the node that best matches the prefix given as argument. It is specified as
 follows:
 \[
-    \lookup(T(R, n, m), P) = v
+    \lookup(T(R, n, \_), P) = v
 \]
 where $n > 0$, $\triecond(T)$, $N(\_, \_, v, \_) \in T$ and
 \[
