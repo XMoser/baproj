@@ -1,17 +1,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-//#include <errno.h>
 #include <stddef.h>
 
 #define LPM_TREE_NODE_FLAG_IM	1
-#define LPM_DATA_SIZE_MAX	256
-#define LPM_DATA_SIZE_MIN	1
-#define LPM_VAL_SIZE_MAX	(SIZE_MAX - LPM_DATA_SIZE_MAX - \
-				 				sizeof(struct lpm_trie_node))
-#define LPM_VAL_SIZE_MIN	1
 #define LPM_DATA_SIZE 		4
-#define LPM_VALUE_SIZE		1
 #define LPM_PLEN_MAX		32
 
 #define min(a, b) ((a<b) ? (a) : (b))
@@ -23,7 +16,7 @@ struct lpm_trie_node {
 	uint32_t prefixlen;
 	uint32_t flags;
 	uint8_t data[LPM_DATA_SIZE];
-	uint8_t value[LPM_VALUE_SIZE];
+	int value;
 };
 
 struct lpm_trie {
@@ -40,8 +33,7 @@ struct lpm_trie_key {
     uint8_t data[LPM_DATA_SIZE];
 };
 
-struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie,
-						 					const uint8_t *value);
+struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie, int value);
 /*@ requires true; @*/
 /*@ ensures true; @*/
 
@@ -58,16 +50,15 @@ int extract_bit(const uint8_t *data, size_t index);
 /*@ ensures true; @*/
 
 size_t longest_prefix_match(const struct lpm_trie_node *node,
-                   			const struct lpm_trie_key *key);
+                            const struct lpm_trie_key *key);
 /*@ requires true; @*/
 /*@ ensures true; @*/
 
-uint8_t *trie_lookup_elem(struct lpm_trie *trie, void *_key);
+int trie_lookup_elem(struct lpm_trie *trie, void *_key);
 /*@ requires true; @*/
 /*@ ensures true; @*/
 
-int trie_update_elem(struct lpm_trie *trie, void *_key, uint8_t *value,
-					 uint64_t flags);
+int trie_update_elem(struct lpm_trie *trie, void *_key, int value);
 /*@ requires true; @*/
 /*@ ensures true; @*/
 
