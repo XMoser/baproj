@@ -34,11 +34,26 @@ struct lpm_trie_key {
 };
 
 /*@
-	inductive lpm_node = node(lpm_node, list<int>, int, lpm_node) | nil;
+	inductive option<t> = some(t) | nil;
+	inductive lpm_node = node(lpm_node, list<int>, option<int>, lpm_node) | nil;
 	inductive lpm_trie = trie(lpm_node, int, int);
 
 	predicate lpm_trie_p(struct lpm_trie *trie, lpm_trie t);
 	predicate lpm_prefix_p(struct lpm_trie_key *key, list<int>);
+
+	fixpoint bool is_empty(option<t> opt){
+		switch(opt) {
+			case some(v): return false;
+			case nil: return true;
+		}
+	}
+
+	fixpoint t get<t>(option<t> opt){
+		switch(opt) {
+			case nil:
+			case some(v): return v;
+		}
+	}
 
 	fixpoint int trie_size(lpm_trie t){
 		switch(t){
@@ -55,7 +70,9 @@ struct lpm_trie_key {
 	fixpoint int match_length(lpm_node node, list<int> p){
 		switch(node) {
 			case nil: return 0;
-			case lpm_node(lc, np, v, rc):
+			case node(lc, np, v, rc):
+				return match_length_aux(np, p, 0);
+			case im_node(lc, np, rc):
 				return match_length_aux(np, p, 0);
 		}
     }
@@ -83,10 +100,10 @@ struct lpm_trie_key {
 		} else {
 			switch(node) {
 				case nil: return false;
-				case lpm_node(n_lc, np, nv, n_rc):
+				case node(n_lc, np, nv, n_rc):
 					switch(root) {
 						case nil: return false;
-						case lpm_node(r_lc, rp, rv, r_rc):
+						case node(r_lc, rp, rv, r_rc):
 							if(match_length(root, np) < length(rp)){
 								return false;
 							} else {
@@ -115,10 +132,10 @@ struct lpm_trie_key {
 	fixpoint bool same_prefix(lpm_node n1, lpm_node n2){
 		switch(n1) {
 			case nil: return false;
-			case lpm_node(n1_lc, n1_p, n1_v, n1_rc):
+			case node(n1_lc, n1_p, n1_v, n1_rc):
 				switch(n2) {
 					case nil: return false;
-					case lpm_node(n2_lc, n2_p, n2_v, n2_rc):
+					case node(n2_lc, n2_p, n2_v, n2_rc):
 						return n1_p == n2_p;
 				}
 		}
@@ -127,7 +144,7 @@ struct lpm_trie_key {
 	fixpoint bool contains_prefix(lpm_trie trie, list<int> p){
 		switch(trie) {
 			case trie(root, n, m):
-				lpm_node p_node = lpm_node(nil, p, -1, nil);
+				lpm_node p_node = node(nil, p, nil, nil);
 				return node_search(root, p_node, same_prefix);
 		}
 	}
@@ -143,7 +160,7 @@ struct lpm_trie_key {
 	fixpoint bool trie_cond_nodes(lpm_node node){
 		switch(node) {
 			case nil: return true;
-			case lpm_node(lc, p, v, rc):
+			case node(lc, p, v, rc):
 				return valid_child(lc, p, 0) && valid_child(rc, p, 1) &&
                        trie_cond_nodes(lc) && trie_cond_nodes(rc);
 		}
@@ -152,7 +169,7 @@ struct lpm_trie_key {
 	fixpoint bool valid_child(lpm_node child, list<int> p_pref, int diff){
 		switch(child) {
 			case nil: return true;
-			case lpm_node(c_lc, cp, cv, c_rc):
+			case node(c_lc, cp, cv, c_rc):
 				if(match_length(child, p_pref) < length(p_pref)){
 					return false;
 				}
@@ -163,7 +180,7 @@ struct lpm_trie_key {
 		}
 	}
 
-	fixpoint lpm_trie lpm_trie_update(lpm_trie trie, list<int> p, int v){
+	fixpoint lpm_trie lpm_trie_update(lpm_trie trie, list<int> p, option<int> v){
 		switch(trie){
 			case trie(root, n, m):
 				lpm_node new_node = node(nil, p, v, nil);
@@ -186,38 +203,36 @@ struct lpm_trie_key {
 	fixpoint lpm_node lpm_trie_update_nodes(lpm_node root, lpm_node new){
 		switch(root) {
 			case nil: return new;
-			case lpm_node(r_lc, rp, rv, r_rc):
+			case node(r_lc, rp, rv, r_rc):
 				switch(new) {
 					case nil:
-					case lpm_node(n_lc, np, nv, n_rc):
-						int ml = match_length(root, np);
-
-						if(ml == length(rp) && length(rp) == length(np)){
-							return lpm_node(r_lc, rp, nv, l_lc);
+					case node(n_lc, np, nv, n_rc):
+						if(match_length(root, np) == length(rp)
+						   && length(rp) == length(np)){
+							return node(r_lc, rp, nv, l_lc);
 						} else if(ml == length(rp) && length(rp) < length(np)){
-							int diff = nth(length(rp), np);
-							if(diff == 0){
-								return lpm_node(lpm_trie_update_nodes(r_lc, new),
+							if(nth(length(rp), np) == 0){
+								return node(lpm_trie_update_nodes(r_lc, new),
 							                    rp, rv, r_rc);
-							} else {
-								return lpm_node(r_lc, rp, rn,
+							} else if(nth(length(rp), np) == 1){
+								return node(r_lc, rp, rn,
 								                lpm_trie_update_nodes(r_rc, new));
 							}
 
-						} else if(ml < length(rp) && length(np) < length(rp)){
-							int diff = nth(length(np), rp);
-							if(diff == 0){
-								return lpm_node(root, np, nv, n_rc);
-							} else {
-								return lpm_node(n_lc, np, nv, root);
+						} else if(match_length(root, np) < length(rp) &&
+						          length(np) < length(rp)){
+							if(nth(length(np), rp) == 0){
+								return node(root, np, nv, n_rc);
+							} else if(nth(length(np), rp) == 1){
+								return node(n_lc, np, nv, root);
 							}
-							
-						} else if(ml < length(rp) && length(rp) == length(np)){
-							int n_diff = nth(length(np)-1, np);
-							if(n_diff == 0){
-								return node(new, make_im_prefix(np, rp), -1, root);
-							} else if(n_diff == 1){
-								return node(root, make_im_prefix(np, rp), -1, new);
+
+						} else if(match_length(root, np) < length(rp) &&
+						          length(rp) == length(np)){
+							if(nth(length(np)-1, np) == 0){
+								return node(new, make_im_prefix(np, rp), nil, root);
+							} else if(nth(length(np)-1, np) == 1){
+								return node(root, make_im_prefix(np, rp), nil, new);
 							}
 						}
 
@@ -238,6 +253,54 @@ struct lpm_trie_key {
 				case nil: return nil;
 				case cons(h, t): return cons(h, make_im_prefix_aux(t, ml-1));
 			}
+		}
+	}
+
+	fixpoint lpm_trie lpm_trie_delete(lpm_trie trie, list<int> p){
+		switch(trie) {
+			case lpm_trie(root, n, m):
+				return trie(lpm_trie_delete_nodes(nil, root, p), n-1, m);
+		}
+	}
+
+	fixpoint lpm_node lpm_trie_delete_nodes(lpm_node g_par, lpm_node par,
+                                            lpm_node cur, list<int> p){
+
+	}
+
+	fixpoint option<int> trie_lookup(lpm_trie trie, list<int> p){
+		switch(trie) {
+			case trie(root, n, m):
+				return trie_lookup_nodes(root, p);
+		}
+	}
+
+	fixpoint option<int> trie_lookup_nodes(lpm_node par, lpm_node cur, list<int> p){
+		switch(cur) {
+			case nil:
+				switch(par) {
+					case nil: return nil;
+					case node(p_lc, pp, pv, p_rc): return pv;
+				}
+			case node(c_lc, cp, cv, c_rc):
+				if(match_length(cur, p) < length(cp)){
+					switch(par) {
+						case nil: return nil;
+						case node(p_lc, pp, pv, p_rc): return pv;
+					}
+				}
+
+				else if(match_length(cur, p) == length(cp)){
+					if(length(cp) == length(p)){
+						return cv;
+					} else if(length(cp) < length(p)){
+						if(nth(length(cp), p) == 0){
+							return trie_lookup_nodes(cur, c_lc, p);
+						} else if(nth(length(cp), p) == 1){
+							return trie_lookup_nodes(cur, c_rc, p);
+						}
+					}
+				}
 		}
 	}
 
@@ -265,12 +328,17 @@ size_t longest_prefix_match(const struct lpm_trie_node *node,
 /*@ ensures true; @*/
 
 int trie_lookup_elem(struct lpm_trie *trie, void *_key);
-/*@ requires true; @*/
-/*@ ensures true; @*/
+/*@ requires lpm_trie_p(trie, ?t) &*&
+             lpm_prefix_p(_key, ?p) &*&
+             trie_condition(t); @*/
+/*@ ensures is_empty(trie_lookup(t, p)) ?
+				result == -1 :
+				result == get(trie_lookup(t, p)) &*&
+            trie_condition(t); @*/
 
 int trie_update_elem(struct lpm_trie *trie, void *_key, int value);
 /*@ requires lpm_trie_p(trie, ?t1) &*&
-             lpm_prefix_p(_key, ?p) &*&
+             lpm_prefix_p(_key, ?p) &*& //TODO: find way to generate list<int>
              trie_size(t1) < trie_max(t1) &*&
              trie_condition(t1) == true; @*/
 /*@ ensures lpm_trie_p(trie, lpm_trie_update(t1, p, v)) &*&
@@ -278,7 +346,7 @@ int trie_update_elem(struct lpm_trie *trie, void *_key, int value);
 
 int trie_delete_elem(struct lpm_trie *trie, void *_key);
 /*@ requires lpm_trie_p(trie, ?t1) &*&
-             lpm_prefix_p(_key, p)
+             lpm_prefix_p(_key, ?p) &*&
              contains_prefix(t1, p) &*&
 			 trie_condition(t1); @*/
 /*@ ensures lpm_trie_p(trie, lpm_trie_delete(t1, p)) &*&
