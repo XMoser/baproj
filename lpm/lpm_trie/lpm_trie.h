@@ -33,12 +33,15 @@ struct lpm_trie_key {
     uint8_t data[LPM_DATA_SIZE];
 };
 
+//@ #include <listex.gh>
+
 /*@
 	inductive option<t> = some(t) | nil;
 	inductive lpm_node = node(lpm_node, list<int>, option<int>, lpm_node) | nil;
 	inductive lpm_trie = trie(lpm_node, int, int);
 
 	predicate lpm_trie_p(struct lpm_trie *trie, lpm_trie t);
+	predicate lpm_node_p(struct lpm_node *node, lpm_node n);
 	predicate lpm_prefix_p(struct lpm_trie_key *key, list<int>);
 
 	fixpoint bool is_empty(option<t> opt){
@@ -306,16 +309,18 @@ struct lpm_trie_key {
 
 @*/
 
-struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie, int value);
-/*@ requires true; @*/
-/*@ ensures true; @*/
+struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie, int *value);
+/*@ requires value == NULL || *value >= 0; @*/
+/*@ ensures lpm_node_p(result, node(nil, nil,
+                                    value == NULL ? nil : some(*value),
+                                    nil)); @*/
 
 struct lpm_trie *lpm_trie_alloc(size_t max_entries);
 /*@ requires max_entries > 0; @*/
 /*@ ensures lpm_trie_p(result, trie(nil, 0, max_entries)); @*/
 
 void trie_free(struct lpm_trie *trie);
-/*@ requires true; @*/
+/*@ requires lpm_trie_p(trie, ?t); @*/
 /*@ ensures true; @*/
 
 int extract_bit(const uint8_t *data, size_t index);
@@ -327,7 +332,7 @@ size_t longest_prefix_match(const struct lpm_trie_node *node,
 /*@ requires true; @*/
 /*@ ensures true; @*/
 
-int trie_lookup_elem(struct lpm_trie *trie, void *_key);
+int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
 /*@ requires lpm_trie_p(trie, ?t) &*&
              lpm_prefix_p(_key, ?p) &*&
              trie_condition(t); @*/
@@ -336,7 +341,7 @@ int trie_lookup_elem(struct lpm_trie *trie, void *_key);
 				result == get(trie_lookup(t, p)) &*&
             trie_condition(t); @*/
 
-int trie_update_elem(struct lpm_trie *trie, void *_key, int value);
+int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value);
 /*@ requires lpm_trie_p(trie, ?t1) &*&
              lpm_prefix_p(_key, ?p) &*& //TODO: find way to generate list<int>
              trie_size(t1) < trie_max(t1) &*&
@@ -344,7 +349,7 @@ int trie_update_elem(struct lpm_trie *trie, void *_key, int value);
 /*@ ensures lpm_trie_p(trie, lpm_trie_update(t1, p, v)) &*&
             trie_condition(lpm_trie_update(t1, p, v)); @*/
 
-int trie_delete_elem(struct lpm_trie *trie, void *_key);
+int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
 /*@ requires lpm_trie_p(trie, ?t1) &*&
              lpm_prefix_p(_key, ?p) &*&
              contains_prefix(t1, p) &*&

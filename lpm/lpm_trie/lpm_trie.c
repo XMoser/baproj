@@ -1,26 +1,78 @@
-#include "lpm_trie.h"
+//#include "lpm_trie.h"
+#include "lpm_trie_mem.h"
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stddef.h>
 
-struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie, int value)
-/*@ requires true; @*/
-/*@ ensures true; @*/
-{
+struct lpm_trie *lpm_trie_alloc(size_t max_entries)
+/*@ requires max_entries > 0; @*/
+/*@ ensures result == NULL ? true : trie_p(result); @*/
+{	
+	if(max_entries == 0 ||
+	   max_entries > SIZE_MAX / sizeof(struct lpm_trie_node))
+        return NULL;
+
+	struct lpm_trie *trie = malloc(sizeof(struct lpm_trie));
 	if(!trie)
+		return trie;
+
+	//Allocate memory for the maximum number of nodes
+	int max_int = (int) max_entries;
+	void *node_mem_blocks = malloc(sizeof(struct lpm_trie_node) *max_int);
+
+	if(!node_mem_blocks){
+		free(trie);
 		return NULL;
+	}
+
+	//Allocate the stack of pointers to the node blocks
+	void **node_ptr_stack = malloc(sizeof(struct lpm_trie_node*) * max_int);
+	
+	if(!node_ptr_stack){
+		free(node_mem_blocks);
+		free(trie);
+		return NULL;
+	}
+
+	//Initialize pointer stack
+	for(int i = 0; i < max_int; i++)
+	//@ requires node_ptr_stack[i..max_int] |-> _;
+	//@ ensures node_ptr_stack[old_i..max_int] |-> _;
+	{
+		//@ open pointers(_, _, _);
+		node_ptr_stack[i] = node_mem_blocks + (int) ((size_t) i * sizeof(struct lpm_trie_node));
+	}
+
+	trie->root = NULL;
+	trie->n_entries = 0;
+	trie->max_entries = max_entries;
+	trie->node_mem_blocks = node_mem_blocks;
+	trie->node_ptr_stack = node_ptr_stack;
+	trie->next_ptr_index = 0;
+	//@ close trie_p(trie); 
+
+	return trie;
+}
+
+struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie, int *value)
+/*@ requires trie_p(trie); @*/
+/*@ ensures trie_p(trie); @*/
+{
+	//if(!trie)
+		//return NULL;
 
 	//Find pointer to the next free memory block
+	//@ open trie_p(trie);
 	struct lpm_trie_node **ptr_stack = trie->node_ptr_stack;
-	if(!ptr_stack)
-		return NULL;
+	//if(!ptr_stack)
+		//return NULL;
 
 	size_t ptr_index = trie->next_ptr_index;
 
 	//Allocate next index to the new node
-	struct lpm_trie_node *node = ptr_stack[ptr_index];
+	struct lpm_trie_node *node = (struct lpm_trie_node *) ptr_stack[ptr_index];
 
 	node->flags = 0;
 	node->value = value;
@@ -28,6 +80,8 @@ struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie, int value)
 	node->child[1] = NULL;
 
 	trie->next_ptr_index ++;
+
+	//@ close trie_p(trie);
 	return node;
 }
 
@@ -39,48 +93,8 @@ void node_free(struct lpm_trie_node *ptr, struct lpm_trie *trie)
 	trie->node_ptr_stack[trie->next_ptr_index] = ptr;
 }
 
-struct lpm_trie *lpm_trie_alloc(size_t max_entries)
-/*@ requires true; @*/
-/*@ ensures true; @*/
-{
-    if(max_entries == 0 ||
-		max_entries > SIZE_MAX / sizeof(struct lpm_trie_node))
-        return NULL;
-
-    struct lpm_trie *trie = malloc(sizeof(struct lpm_trie));
-	if(!trie)
-		return trie;
-
-	//Allocate memory for the maximum number of nodes
-	struct lpm_trie_node *node_mem_blocks = calloc(sizeof(struct lpm_trie_node),
-													max_entries);
-	if(!node_mem_blocks)
-		return NULL;
-
-	//Allocate the stack of pointers to the node blocks
-	struct lpm_trie_node **node_ptr_stack = calloc(sizeof(struct lpm_trie_node*),
-													max_entries);
-	if(!node_ptr_stack)
-		return NULL;
-
-	trie->root = NULL;
-    trie->n_entries = 0;
-    trie->max_entries = max_entries;
-	trie->node_mem_blocks = node_mem_blocks;
-	trie->node_ptr_stack = node_ptr_stack;
-	trie->next_ptr_index = 0;
-
-	//Initialize pointer stack
-	for(int i = 0; i < max_entries; i++){
-		trie->node_ptr_stack[i] = &(trie->node_mem_blocks[i]);
-	}
-
-    return trie;
-}
-
-
 void trie_free(struct lpm_trie *trie)
-/*@ requires true; @*/
+/*@ requires trie_p(trie); @*/
 /*@ ensures true; @*/
 {
 	free(trie->node_mem_blocks);
@@ -97,8 +111,8 @@ int extract_bit(const uint8_t *data, size_t index)
 
 size_t longest_prefix_match(const struct lpm_trie_node *node,
                             const struct lpm_trie_key *key)
-/*@ requires true; @*/
-/*@ ensures true; @*/
+/*@ requires malloc_block_lpm_trie_key(key); @*/
+/*@ ensures malloc_block_lpm_trie_key(key); @*/
 {
 	size_t prefixlen = 0;
 	size_t i;
@@ -119,13 +133,14 @@ size_t longest_prefix_match(const struct lpm_trie_node *node,
 	return prefixlen;
 }
 
-int trie_lookup_elem(struct lpm_trie *trie, void *_key)
-/*@ requires true; @*/
-/*@ ensures true; @*/
+int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
+/*@ requires trie_p(trie) &*&
+             malloc_block_lpm_trie_key(key); @*/
+/*@ ensures trie_p(trie) &*&
+            malloc_block_lpm_trie_key(key); @*/
 {
 	struct lpm_trie_node *node;
 	struct lpm_trie_node *found = NULL;
-	struct lpm_trie_key *key = _key;
 	if(!key)
 		return -1;
 
@@ -172,15 +187,16 @@ int trie_lookup_elem(struct lpm_trie *trie, void *_key)
 	return found->value;
 }
 
-int trie_update_elem(struct lpm_trie *trie, void *_key, int value)
-/*@ requires true; @*/
-/*@ ensures true; @*/
+int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value)
+/*@ requires trie_p(trie) &*&
+             malloc_block_lpm_trie_key(key); @*/
+/*@ ensures trie_p(trie) &*&
+            malloc_block_lpm_trie_key(key); @*/
 {
 	struct lpm_trie_node *node;
 	struct lpm_trie_node *im_node = NULL;
 	struct lpm_trie_node *new_node = NULL;
 	struct lpm_trie_node **slot;
-	struct lpm_trie_key *key = _key;
 	unsigned int next_bit;
 	size_t matchlen = 0;
 	int ret = 0;
@@ -261,7 +277,7 @@ int trie_update_elem(struct lpm_trie *trie, void *_key, int value)
 		goto out;
 	}
 
-	im_node = lpm_trie_node_alloc(trie, -1);
+	im_node = lpm_trie_node_alloc(trie, NULL);
 	if (!im_node) {
 		ret = -1;
 		goto out;
@@ -295,11 +311,12 @@ out:
 	return ret;
 }
 
-int trie_delete_elem(struct lpm_trie *trie, void *_key)
-/*@ requires true; @*/
-/*@ ensures true; @*/
+int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
+/*@ requires trie_p(trie) &*&
+             malloc_block_lpm_trie_key(key); @*/
+/*@ ensures trie_p(trie) &*&
+            malloc_block_lpm_trie_key(key); @*/
 {
-	struct lpm_trie_key *key = _key;
 	struct lpm_trie_node **trim;
 	struct lpm_trie_node **trim2;
 	struct lpm_trie_node *node;
