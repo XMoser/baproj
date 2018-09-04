@@ -9,7 +9,7 @@
 struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 /*@ requires max_entries > 0; @*/
 /*@ ensures result == NULL ? true : trie_p(result); @*/
-{	
+{
 	if(max_entries == 0 ||
 	   max_entries > SIZE_MAX / sizeof(struct lpm_trie_node))
         return NULL;
@@ -20,7 +20,7 @@ struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 
 	//Allocate memory for the maximum number of nodes
 	int max_int = (int) max_entries;
-	void *node_mem_blocks = malloc(sizeof(struct lpm_trie_node) *max_int);
+	void *node_mem_blocks = malloc(sizeof(struct lpm_trie_node) * max_int);
 
 	if(!node_mem_blocks){
 		free(trie);
@@ -28,8 +28,9 @@ struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 	}
 
 	//Allocate the stack of pointers to the node blocks
-	void **node_ptr_stack = malloc(sizeof(struct lpm_trie_node*) * max_int);
-	
+	size_t node_ptr_size = sizeof(struct lpm_trie_node*);
+	uintptr_t *node_ptr_stack = malloc((int) (node_ptr_size * max_entries));
+
 	if(!node_ptr_stack){
 		free(node_mem_blocks);
 		free(trie);
@@ -41,8 +42,9 @@ struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 	//@ requires node_ptr_stack[i..max_int] |-> _;
 	//@ ensures node_ptr_stack[old_i..max_int] |-> _;
 	{
-		//@ open pointers(_, _, _);
-		node_ptr_stack[i] = node_mem_blocks + (int) ((size_t) i * sizeof(struct lpm_trie_node));
+		//@ open uints(_, _, _);
+		node_ptr_stack[i] = (uintptr_t) (node_mem_blocks + (int) ((size_t) i *
+		                                 sizeof(struct lpm_trie_node)));
 	}
 
 	trie->root = NULL;
@@ -51,7 +53,7 @@ struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 	trie->node_mem_blocks = node_mem_blocks;
 	trie->node_ptr_stack = node_ptr_stack;
 	trie->next_ptr_index = 0;
-	//@ close trie_p(trie); 
+	//@ close trie_p(trie);
 
 	return trie;
 }
@@ -65,7 +67,7 @@ struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie, int *value)
 
 	//Find pointer to the next free memory block
 	//@ open trie_p(trie);
-	struct lpm_trie_node **ptr_stack = trie->node_ptr_stack;
+	uintptr_t *ptr_stack = trie->node_ptr_stack;
 	//if(!ptr_stack)
 		//return NULL;
 
@@ -90,7 +92,7 @@ void node_free(struct lpm_trie_node *ptr, struct lpm_trie *trie)
 /*@ ensures true; @*/
 {
 	trie->next_ptr_index --;
-	trie->node_ptr_stack[trie->next_ptr_index] = ptr;
+	trie->node_ptr_stack[trie->next_ptr_index] = (uintptr_t) ptr;
 }
 
 void trie_free(struct lpm_trie *trie)
@@ -142,7 +144,7 @@ int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	struct lpm_trie_node *node;
 	struct lpm_trie_node *found = NULL;
 	if(!key)
-		return -1;
+		return NULL;
 
 	/* Start walking the trie from the root node ... */
 
@@ -182,7 +184,7 @@ int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	}
 
 	if (!found)
-		return -1;
+		return NULL;
 
 	return found->value;
 }

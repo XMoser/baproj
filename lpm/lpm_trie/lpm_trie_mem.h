@@ -25,7 +25,7 @@ struct lpm_trie {
 	size_t n_entries;
     size_t max_entries;
 	void *node_mem_blocks;
-	void **node_ptr_stack;
+	uintptr_t *node_ptr_stack;
 	size_t next_ptr_index;
 };
 
@@ -47,12 +47,10 @@ struct lpm_trie_key {
                            (sizeof(struct lpm_trie_node) * max)) &*&
         chars(mem_blocks, (sizeof(struct lpm_trie_node) * max), _) &*&
         trie->node_ptr_stack |-> ?ptr_stack &*&
-        malloc_block_pointers(ptr_stack, max) &*&
-        pointers(ptr_stack, max, _) &*&
+        malloc_block(ptr_stack, sizeof(struct lpm_trie_node*) * max) &*&
+        uints(ptr_stack, max, _) &*&
         trie->next_ptr_index |-> ?next_pi &*&
         next_pi >= 0 && next_pi < max;
-
-    lemma void bytes_to_nodes(void *nodes_mem, int count);
 
 @*/
 
