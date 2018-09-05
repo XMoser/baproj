@@ -187,12 +187,34 @@ struct lpm_trie_key {
 		}
 	}
 
+	fixpoint bool has_two_children(lpm_node node){
+		swicth(node) {
+			case nil: return false;
+			case node(lc, p, v, rc):
+				switch(lc) {
+					case nil: return false;
+					case node(llc, lp, lv, lrc):
+						switch(rc) {
+							case nil: return false;
+							case node(rlc, rp, rv, rrc):
+								return true;
+						}
+				}
+		}
+	}
+
 	fixpoint bool trie_cond_nodes(lpm_node node){
 		switch(node) {
 			case nil: return true;
 			case node(lc, p, v, rc):
-				return valid_child(lc, p, 0) && valid_child(rc, p, 1) &&
-                       trie_cond_nodes(lc) && trie_cond_nodes(rc);
+				if(is_im_node(node)){
+					return has_two_children(node) && valid_child(lc, p, 0) &&
+					       valid_child(rc, p, 1) && trie_cond_nodes(lc) &&
+					       trie_cond_nodes(rc);
+				} else {
+					return valid_child(lc, p, 0) && valid_child(rc, p, 1) &&
+						   trie_cond_nodes(lc) && trie_cond_nodes(rc);
+				}
 		}
 	}
 
@@ -301,16 +323,36 @@ struct lpm_trie_key {
 					case nil:
 						switch(rem_rc) {
 							case nil:
+								//no children
 								if(is_im_node(par)){
-									return nil;
+									//check for sibling, return it if it exists
+									switch(par) {
+										case nil:
+										case node(p_lc, pp, pv, p_rc):
+											if(is_left_child(par, rem)){
+												return p_rc;
+											} else if(is_right_child){
+												return p_lc;
+											}
+									}
 								} else {
-									return par;
+									//remove rem
+									switch(par) {
+										case nil:
+										case node(p_lc, pp, pv, p_rc):
+											if(is_left_child(par, rem)){
+												return node(nil, pp, pv, p_rc);
+											} else if(is_right_child(par, rem)){
+												return node(p_lc, pp, pv, nil);
+											}
+									}
 								}
 							case node(rem_rlc, rem_rp, rem_rv, rem_rrc):
 								//one child, to the right
 								switch(par) {
 									case nil:
 									case node(p_lc, pp, pv, p_rc):
+										//replace rem with rem_rc
 										if(is_left_child(par, rem)){
 											return node(rem_rc, pp, pv, p_rc);
 										} else if(is_right_child(par, rem)){
@@ -325,6 +367,7 @@ struct lpm_trie_key {
 								switch(par) {
 									case nil:
 									case node(p_lc, pp, pv, p_rc):
+										//replace rem with rem_lc
 										if(is_left_child(par, rem)){
 											return node(rem_lc, pp, pv, p_rc);
 										} else if(is_right_child(par, rem)){
@@ -332,7 +375,7 @@ struct lpm_trie_key {
 										}
 								}
 							case node(rem_rlc, rem_rp, rem_rv, rem_rrc):
-								//two children
+								//two children -> mark rem as intermediary node
 								if(is_left_child(par, rem)){
 									return node(node(rem_lc, remp, nil, rem_rc), pp, pv, p_rc);
 								} else if(is_right_child(par, rem)){
