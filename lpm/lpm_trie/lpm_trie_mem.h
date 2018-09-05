@@ -64,20 +64,50 @@ struct lpm_trie_key {
 		count == 0 ?
 	        true
 	    :
-	        node_p(node) &*& nodes_p(cell + 1, count - 1);
+	        node_p(node) &*& nodes_p(node + 1, count - 1);
 
 	lemma void node_layout_assumptions(struct lpm_trie_node *node)
 	requires true;
-	ensures true;
-	//TODO implement
+	ensures sizeof(struct lpm_trie_node) == 2*sizeof(struct lpm_trie_node *) +
+	                                        2*sizeof(uint32_t) +
+	                                        LPM_DATA_SIZE*sizeof(uint8_t) +
+	                                        sizeof(int *) &*&
+	        (void*) node->child + 2*sizeof(struct lpm_trie_node *) ==
+			(void*) &(node->prefixlen) &*&
+			(void*) &(node->prefixlen) + sizeof(uint32_t) ==
+			(void*) &(node->flags) &*&
+			(void*) &(node->flags) + sizeof(uint32_t) == (void*) node->data &*&
+			(void*) node->data + LPM_DATA_SIZE*sizeof(uint8_t) ==
+			(void*) node->value;
 
-	lemma void bytes_to_dcell(void* dc)
+	lemma void bytes_to_node(void* node)
     requires chars((void*)node, sizeof(struct lpm_trie_node), ?chs);
     ensures node_p(node, _);
     {
-      struct lpm_trie_node* nodep = node;
-      node_layout_assumptions(nodep);
-	  //TODO implement
+      struct lpm_trie_node* node_s = node;
+      node_layout_assumptions(node_s);
+	  chars_split((void*) node, sizeof(void*));
+	  chars_to_pointer((void*) node_s->child[0]);
+	  assert ?offset == sizeof(void*);
+	  chars_split((void*) node + offset, sizeof(void*));
+	  chars_to_pointer((void*) node_s->child[1]);
+	  assert ?offset == 2*sizeof(void*);
+	  chars_split((void*) node + offset, sizeof(uint32_t));
+	  chars_to_u_integer(node_s->prefixlen);
+	  assert ?offset == 2*sizeof(void*) + sizeof(uint32_t);
+	  chars_split((void*) node + offset, sizeof(uint32_t));
+	  chars_to_u_integer(node_s->flags);
+	  assert ?offset == 2*sizeof(void*) + 2*sizeof(uint32_t);
+	  chars_split((void*) node + offset, LPM_DATA_SIZE*sizeof(uint8_t));
+	  assert ?offset == 2*sizeof(void*) + 2*sizeof(uint32_t) +
+	                    LPM_DATA_SIZE*sizeof(uint8_t);
+	  chars_split((void*) node + offset, sizeof(void*));
+	  chars_to_pointer((void*) node_s->value);
+	  close lpm_trie_node_child(node, _);
+	  close lpm_trie_node_prefixlen(node, _);
+	  close lpm_trie_node_flags(node, _);
+	  close lpm_trie_node_data(node, _);
+	  close lpm_trie_node_value(node, _);					
     }
 
     lemma void bytes_to_nodes(void* node, nat len)
