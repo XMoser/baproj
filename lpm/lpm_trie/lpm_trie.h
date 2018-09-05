@@ -125,6 +125,33 @@ struct lpm_trie_key {
 		return n1 == n2;
 	}
 
+	fixpoint bool is_im_node(lpm_node node){
+		switch(node) {
+			case nil: return false;
+			case node(lc, p, v, rc):
+				switch(v) {
+					case nil: return true;
+					case some(val): return false;
+				}
+		}
+	}
+
+	fixpoint bool is_right_child(lpm_node par, lpm_node node){
+		switch(par) {
+			case nil: return false;
+			case node(p_lc, pp, pv, p_rc):
+				return node_equals(node, p_rc);
+		}
+	}
+
+	fixpoint bool is_left_child(lpm_node par, lpm_node node){
+		switch(par) {
+			case nil: return false;
+			case node(p_lc, pp, pv, p_rc):
+				return node_equals(node, p_lc);
+		}
+	}
+
 	fixpoint bool contains(lpm_trie trie, lpm_node node){
 		switch(trie) {
 			case trie(root, n, m):
@@ -262,13 +289,93 @@ struct lpm_trie_key {
 	fixpoint lpm_trie lpm_trie_delete(lpm_trie trie, list<int> p){
 		switch(trie) {
 			case lpm_trie(root, n, m):
-				return trie(lpm_trie_delete_nodes(nil, root, p), n-1, m);
+				return trie(lpm_trie_delete_nodes(nil, nil, root, p), n-1, m);
 		}
 	}
 
-	fixpoint lpm_node lpm_trie_delete_nodes(lpm_node g_par, lpm_node par,
-                                            lpm_node cur, list<int> p){
+	fixpoint lpm_node remove_node(lpm_node par, lpm_node rem){
+		switch(rem) {
+			case nil:
+			case node(rem_lc, remp, remv, rem_rc){
+				switch(rem_lc){
+					case nil:
+						switch(rem_rc) {
+							case nil:
+								if(is_im_node(par)){
+									return nil;
+								} else {
+									return par;
+								}
+							case node(rem_rlc, rem_rp, rem_rv, rem_rrc):
+								//one child, to the right
+								switch(par) {
+									case nil:
+									case node(p_lc, pp, pv, p_rc):
+										if(is_left_child(par, rem)){
+											return node(rem_rc, pp, pv, p_rc);
+										} else if(is_right_child(par, rem)){
+											return node(p_lc, pp, pv, rem_rc);
+										}
+								}
+						}
+					case node(rem_llc, rem_lp, rem_lv, rem_lrc):
+						switch(rem_rc) {
+							case nil:
+								//one child, to the left
+								switch(par) {
+									case nil:
+									case node(p_lc, pp, pv, p_rc):
+										if(is_left_child(par, rem)){
+											return node(rem_lc, pp, pv, p_rc);
+										} else if(is_right_child(par, rem)){
+											return node(p_lc, pp, pv, rem_lc);
+										}
+								}
+							case node(rem_rlc, rem_rp, rem_rv, rem_rrc):
+								//two children
+								if(is_left_child(par, rem)){
+									return node(node(rem_lc, remp, nil, rem_rc), pp, pv, p_rc);
+								} else if(is_right_child(par, rem)){
+									return node(p_lc, pp, pv, node(rem_lc, remp, nil, rem_rc));
+								}
+						}
+				}
+			}
+		}
+	}
 
+	fixpoint lpm_node lpm_trie_delete_nodes(lpm_node par, list<int> p){
+		swicth(par) {
+			case nil: return nil;
+			case node(p_lc, pp, pv, p_rc):
+				if(match_length(par, p) < length(p) && length(pp) < length(p)){
+					if(nth(length(pp), p) == 0){
+						//check prefix match with left child;
+						switch(p_lc) {
+							case nil: return par;
+							case node(l_lc, lp, lv, l_rc):
+								if(match_length(p_lc, p) < length(p) && length(lp) < length(p)){
+									return node(lpm_trie_dele_nodes(p_lc, p), pp, pv, p_rc);
+								} else if(match_length(p_lc, p) == length(p) && length(lp) == length(p)){
+									//remove left child
+									return remove_node(par, p_lc);
+								}
+						}
+					} else if(nth(length(pp), p) == 1){
+						//check prefix match with right child;
+						switch(p_rc) {
+							case nil: return par;
+							case node(r_lc, rp, rv, r_rc):
+								if(match_length(p_rc, p) < length(p) && length(rp) < length(p)){
+									return node(p_lc, pp, pv, lpm_trie_dele_nodes(p_rc, p));
+								} else if(match_length(p_rc, p) == length(p) && length(rp) == length(p)){
+									//remove right child
+									return remove_node(par, p_rc);
+								}
+						}
+					}
+				}
+		}
 	}
 
 	fixpoint option<int> trie_lookup(lpm_trie trie, list<int> p){
