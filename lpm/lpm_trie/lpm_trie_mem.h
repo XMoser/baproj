@@ -16,7 +16,9 @@
 struct lpm_trie_node;
 
 struct lpm_trie_node {
-	struct lpm_trie_node *child[2];
+	//struct lpm_trie_node *child[2];
+	struct lpm_trie_node l_child;
+	struct lpm_trie_node r_child;
 	uint32_t prefixlen;
 	uint32_t flags;
 	uint8_t data[LPM_DATA_SIZE];
@@ -54,7 +56,8 @@ struct lpm_trie_key {
 		next_pi >= 0 && next_pi < max;
 
 	predicate node_p(struct lpm_trie_node* node) =
-		node->child |-> _ &*&
+		node->l_child |-> _ &*&
+		node->r_child |-> _ &*&
 		node->prefixlen |-> _ &*&
 		node->flags |-> _ &*&
 		node->data |-> _ &*&
@@ -74,7 +77,9 @@ struct lpm_trie_key {
 	                                        2*sizeof(uint32_t) +
 	                                        LPM_DATA_SIZE*sizeof(uint8_t) +
 	                                        sizeof(int *) &*&
-	        (void*) node->child + 2*sizeof(struct lpm_trie_node *) ==
+	        (void*) node->l_child + sizeof(struct lpm_trie_node *) ==
+			(void*) node->r_child &*&
+			(void*) node->r_child + sizeof(strut lpm_trie_node *) ==
 	        (void*) &(node->prefixlen) &*&
 	        (void*) &(node->prefixlen) + sizeof(uint32_t) ==
 	        (void*) &(node->flags) &*&
@@ -91,9 +96,9 @@ struct lpm_trie_key {
 		struct lpm_trie_node* node_s = node;
 		node_layout_assumptions(node_s);
 		chars_split((void*) node, sizeof(void*));
-		chars_to_pointer((void*) node_s->child[0]);
+		chars_to_pointer((void*) node_s->l_child);
 		chars_split((void*) node + sizeof(void*), sizeof(void*));
-		chars_to_pointer((void*) node_s->child[1]);
+		chars_to_pointer((void*) node_s->r_child);
 	 	chars_split((void*) node + 2*sizeof(void*), sizeof(uint32_t));
 		chars_to_u_integer(node_s->prefixlen);
 		chars_split((void*) node + 2*sizeof(void*) + sizeof(uint32_t),

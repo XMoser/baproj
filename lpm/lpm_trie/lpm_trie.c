@@ -60,16 +60,17 @@ struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 
 struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie, int *value)
 /*@ requires trie_p(trie); @*/
-/*@ ensures trie_p(trie); @*/
+/*@ ensures trie_p(trie) &*&
+            result == NULL ? true : node_p(result); @*/
 {
-	//if(!trie)
-		//return NULL;
+	if(!trie)
+		return NULL;
 
 	//Find pointer to the next free memory block
 	//@ open trie_p(trie);
 	uintptr_t *ptr_stack = trie->node_ptr_stack;
-	//if(!ptr_stack)
-		//return NULL;
+	if(!ptr_stack)
+		return NULL;
 
 	size_t ptr_index = trie->next_ptr_index;
 
@@ -78,8 +79,8 @@ struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie, int *value)
 
 	node->flags = 0;
 	node->value = value;
-	node->child[0] = NULL;
-	node->child[1] = NULL;
+	node->l_child = NULL;
+	node->r_child = NULL;
 
 	trie->next_ptr_index ++;
 
@@ -180,7 +181,12 @@ int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 		 * traverse down.
 		 */
 		next_bit = extract_bit(key->data, node->prefixlen);
-		node = node->child[next_bit];
+		if(next_bit == 0){
+			node = node->l_child;
+		} else {
+			node = node->r_child;
+		}
+		//node = node->child[next_bit];
 	}
 
 	if (!found)
@@ -222,8 +228,8 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
 	trie->n_entries++;
 
 	new_node->prefixlen = key->prefixlen;
-    new_node->child[0] = NULL;
-    new_node->child[1] = NULL;
+    new_node->l_child = NULL;
+    new_node->r_child = NULL;
 	memcpy(new_node->data, key->data, LPM_DATA_SIZE);
 
 	/* Now find a slot to attach the new node. To do that, walk the tree
@@ -242,7 +248,12 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
 			break;
 
 		next_bit = extract_bit(key->data, node->prefixlen);
-		slot = &node->child[next_bit];
+		if(next_bit == 0){
+			slot = &node->l_child;
+		} else {
+			slot = &node->r_child;
+		}
+		//slot = &node->child[next_bit];
 	}
 
 	/* If the slot is empty (a free child pointer or an empty root),
@@ -257,8 +268,8 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
 	 * which already has the correct data array set.
 	 */
 	if (node->prefixlen == matchlen) {
-		new_node->child[0] = node->child[0];
-		new_node->child[1] = node->child[1];
+		new_node->l_child = node->l_child;
+		new_node->r_child = node->r_child;
 
 		if (!(node->flags & LPM_TREE_NODE_FLAG_IM))
 			trie->n_entries--;
@@ -274,7 +285,12 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
 	 */
 	if (matchlen == key->prefixlen) {
 		next_bit = extract_bit(node->data, matchlen);
-        new_node->child[next_bit] = node;
+        //new_node->child[next_bit] = node;
+		if(next_bit == 0){
+			new_node->l_child = node;
+		} else {
+			new_node->r_child = node;
+		}
         *slot = new_node;
 		goto out;
 	}
@@ -291,11 +307,11 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
 
 	/* Now determine which child to install in which slot */
 	if (extract_bit(key->data, matchlen)) {
-        im_node->child[0] = node;
-        im_node->child[1] = new_node;
+        im_node->l_child = node;
+        im_node->r_child = new_node;
 	} else {
-        im_node->child[0] = new_node;
-        im_node->child[1] = node;
+        im_node->l_child = new_node;
+        im_node->r_child = node;
 	}
 
 	/* Finally, assign the intermediate node to the determined spot */
@@ -350,7 +366,12 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 		parent = node;
 		trim2 = trim;
 		next_bit = extract_bit(key->data, node->prefixlen);
-		trim = &node->child[next_bit];
+		//trim = &node->child[next_bit];
+		if(next_bit == 0){
+			trim = &node->l_child;
+		} else {
+			trim = &node->r_child;
+		}
 	}
 
 	if (!node || node->prefixlen != key->prefixlen ||
@@ -364,7 +385,7 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	/* If the node we are removing has two children, simply mark it
 	 * as intermediate and we are done.
 	 */
-	if (node->child[0] && node->child[1]) {
+	if (node->l_child && node->r_child) {
 		node->flags |= LPM_TREE_NODE_FLAG_IM;
 		goto out;
 	}
@@ -377,11 +398,11 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	 * unnecessary intermediate nodes in the tree.
 	 */
 	if (parent && (parent->flags & LPM_TREE_NODE_FLAG_IM) &&
-	    !node->child[0] && !node->child[1]) {
-		if (node == parent->child[0])
-            *trim2 = parent->child[1];
+	    !node->l_child && !node->r_child) {
+		if (node == parent->l_child)
+            *trim2 = parent->r_child;
 		else
-            *trim2 = parent->child[0];
+            *trim2 = parent->l_child;
         node_free(parent, trie);
         node_free(node, trie);
 		goto out;
@@ -391,10 +412,10 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	 * is a child, move it into the removed node's slot then delete
 	 * the node.  Otherwise just clear the slot and delete the node.
 	 */
-	if (node->child[0])
-        *trim = node->child[0];
-	else if (node->child[1])
-        *trim = node->child[1];
+	if (node->l_child)
+        *trim = node->l_child;
+	else if (node->r_child)
+        *trim = node->r_child;
 	else
         *trim = NULL;
     node_free(node, trie);

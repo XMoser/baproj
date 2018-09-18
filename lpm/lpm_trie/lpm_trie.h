@@ -13,7 +13,9 @@
 struct lpm_trie_node;
 
 struct lpm_trie_node {
-	struct lpm_trie_node *child[2];
+	//struct lpm_trie_node *child[2];
+	struct lpm_trie_node l_child;
+	struct lpm_trie_node r_child;
 	uint32_t prefixlen;
 	uint32_t flags;
 	uint8_t data[LPM_DATA_SIZE];
@@ -415,7 +417,7 @@ struct lpm_trie_key {
 			case empty: return empty;
 			case node(p_lc, pp, pv, p_rc):
 				if(match_length(par, p) < length(p) && length(pp) < length(p)){
-				
+
 					if(nth(length(pp), p) == 0){
 						//check prefix match with left child;
 						switch(p_lc) {
