@@ -246,8 +246,7 @@ struct lpm_trie_key {
 						switch(rc) {
 							case empty: return node_count_aux(lc, acc+1);
 							case node(l_lc, lp, lv, l_rc):
-								return node_count_aux(lc, acc+1) +
-								       node_count_aux(rc, acc + node_count_aux(lc, acc+1));
+								return node_count_aux(rc, acc + node_count_aux(lc, acc+1));
 						}
 				}
 		}
@@ -369,6 +368,7 @@ struct lpm_trie_key {
 											}
 									}
 								}
+
 							case node(rem_rlc, rem_rp, rem_rv, rem_rrc):
 								//one child, to the right
 								switch(par) {
@@ -382,6 +382,7 @@ struct lpm_trie_key {
 										}
 								}
 						}
+
 					case node(rem_llc, rem_lp, rem_lv, rem_lrc):
 						switch(rem_rc) {
 							case empty:
@@ -414,6 +415,7 @@ struct lpm_trie_key {
 			case empty: return empty;
 			case node(p_lc, pp, pv, p_rc):
 				if(match_length(par, p) < length(p) && length(pp) < length(p)){
+				
 					if(nth(length(pp), p) == 0){
 						//check prefix match with left child;
 						switch(p_lc) {
@@ -426,6 +428,7 @@ struct lpm_trie_key {
 									return remove_node(par, p_lc);
 								}
 						}
+
 					} else if(nth(length(pp), p) == 1){
 						//check prefix match with right child;
 						switch(p_rc) {

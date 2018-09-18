@@ -62,4 +62,5 @@ requires a < b;
 ensures a != b;
 {
 }
-#endif ARITH_GHs
+
+#endif
