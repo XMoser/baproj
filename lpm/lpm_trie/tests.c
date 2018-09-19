@@ -8,10 +8,9 @@
 
 struct lpm_trie_key *lpm_trie_key_alloc(size_t prefixlen, uint8_t *data)
 {
-    struct lpm_trie_key *key = malloc(sizeof(struct lpm_trie_key) + sizeof(data));
+    struct lpm_trie_key *key = malloc(sizeof(struct lpm_trie_key));
     key->prefixlen = prefixlen;
-    memcpy(key->data, data, sizeof(data));
-
+    memcpy(key->data, data, LPM_DATA_SIZE);
     return key;
 }
 
@@ -42,16 +41,16 @@ void print_node(struct lpm_trie_node *node, struct lpm_trie *trie)
     print_node_data(node, trie);
 
     printf("child0: ");
-    if(!node->child[0])
+    if(!node->l_child)
         printf("---\n");
     else
-        print_node_data(node->child[0], trie);
+        print_node_data(node->l_child, trie);
 
     printf("child1: ");
-    if(!node->child[1])
+    if(!node->r_child)
         printf("---\n");
     else
-        print_node_data(node->child[1], trie);
+        print_node_data(node->r_child, trie);
 
     printf("=============================\n");
 }
@@ -94,13 +93,13 @@ int test_update_elem()
     if(res)
         goto out;
 
-    struct lpm_trie_node *node_2 = trie->root->child[0];
+    struct lpm_trie_node *node_2 = trie->root->l_child;
     res = memcmp(node_2->data, key_2->data, LPM_DATA_SIZE);
     if(res)
         goto out;
 
     print_node(trie->root, trie);
-    print_node(trie->root->child[0], trie);
+    print_node(trie->root->l_child, trie);
 
     printf("##### Inserting third node #####\n");
     int value_3 = 3;
@@ -108,14 +107,14 @@ int test_update_elem()
     if(res)
         goto out;
 
-    struct lpm_trie_node *node_3 = trie->root->child[1];
+    struct lpm_trie_node *node_3 = trie->root->r_child;
     res = memcmp(node_3->data, key_3->data, LPM_DATA_SIZE);
     if(res)
         goto out;
 
     print_node(trie->root, trie);
-    print_node(trie->root->child[0], trie);
-    print_node(trie->root->child[1], trie);
+    print_node(trie->root->l_child, trie);
+    print_node(trie->root->r_child, trie);
 
     printf("##### Inserting fourth node #####\n");
     int value_4 = 4;
@@ -123,16 +122,16 @@ int test_update_elem()
     if(res)
         goto out;
 
-    struct lpm_trie_node *node_4 = trie->root->child[0]->child[1];
+    struct lpm_trie_node *node_4 = trie->root->l_child->r_child;
     res = memcmp(node_4->data, key_4->data, LPM_DATA_SIZE);
     if(res)
         goto out;
 
     print_node(trie->root, trie);
-    print_node(trie->root->child[0], trie);
-    print_node(trie->root->child[0]->child[0], trie);
-    print_node(trie->root->child[0]->child[1], trie);
-    print_node(trie->root->child[1], trie);
+    print_node(trie->root->l_child, trie);
+    print_node(trie->root->l_child->l_child, trie);
+    print_node(trie->root->l_child->r_child, trie);
+    print_node(trie->root->r_child, trie);
 
 out:
     free(key_4);
@@ -183,10 +182,10 @@ int test_delete_elem()
     node_im->flags = LPM_TREE_NODE_FLAG_IM;
 
     trie->root = node_1;
-    node_1->child[0] = node_im;
-    node_1->child[1] = node_3;
-    node_im->child[0] = node_2;
-    node_im->child[1] = node_4;
+    node_1->l_child = node_im;
+    node_1->r_child = node_3;
+    node_im->l_child = node_2;
+    node_im->r_child = node_4;
 
     struct lpm_trie_key *key_4 = lpm_trie_key_alloc(24, data_4);
     struct lpm_trie_key *key_3 = lpm_trie_key_alloc(24, data_3);
@@ -197,13 +196,13 @@ int test_delete_elem()
     if(res)
         goto out;
 
-    res = memcmp(trie->root->child[0]->data, data_2, LPM_DATA_SIZE);
+    res = memcmp(trie->root->l_child->data, data_2, LPM_DATA_SIZE);
     if(res)
         goto out;
 
     print_node(trie->root, trie);
-    print_node(trie->root->child[0], trie);
-    print_node(trie->root->child[1], trie);
+    print_node(trie->root->l_child, trie);
+    print_node(trie->root->r_child, trie);
 
     printf("#####Deleting second node#####\n");
     res = trie_delete_elem(trie, key_3);
@@ -211,7 +210,7 @@ int test_delete_elem()
         goto out;
 
     print_node(trie->root, trie);
-    print_node(trie->root->child[0], trie);
+    print_node(trie->root->l_child, trie);
 
     printf("#####Deleting third node#####\n");
     res = trie_delete_elem(trie, key_2);
@@ -267,10 +266,10 @@ void test_lookup_elem()
     node_im->flags = LPM_TREE_NODE_FLAG_IM;
 
     trie->root = node_1;
-    node_1->child[0] = node_im;
-    node_1->child[1] = node_3;
-    node_im->child[0] = node_2;
-    node_im->child[1] = node_4;
+    node_1->l_child = node_im;
+    node_1->r_child = node_3;
+    node_im->l_child = node_2;
+    node_im->r_child = node_4;
 
     uint8_t key_data_1[4] = {192, 168, 0, 1};
     uint8_t key_data_2[4] = {192, 168, 1, 1};
