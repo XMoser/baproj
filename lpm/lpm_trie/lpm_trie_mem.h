@@ -1,3 +1,4 @@
+#include "../../dchain/double-chain.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,9 +17,9 @@
 struct lpm_trie_node;
 
 struct lpm_trie_node {
-	//struct lpm_trie_node *child[2];
 	struct lpm_trie_node *l_child;
 	struct lpm_trie_node *r_child;
+	int mem_index;
 	uint32_t prefixlen;
 	uint32_t flags;
 	int *value;
@@ -29,9 +30,8 @@ struct lpm_trie {
 	struct lpm_trie_node *root;
 	size_t n_entries;
 	size_t max_entries;
-	void *node_mem_blocks;
-	uintptr_t *node_ptr_stack;
-	size_t next_ptr_index;
+	struct DoubleChain *dchain;
+	struct lpm_trie_node *node_mem_blocks;
 };
 
 struct lpm_trie_key {
@@ -46,13 +46,14 @@ struct lpm_trie_key {
 		trie->n_entries |-> _ &*&
 		trie->max_entries |-> ?max &*&
 		trie->node_mem_blocks |-> ?mem_blocks &*&
+		trie->node_ptr_stack |-> ?ptr_stack &*&
+		trie->next_ptr_index |-> ?next_pi &*&
+		valid_ptrs(ptr_stack, mem_blocks, max) &*&
 		malloc_block_chars((void*)mem_blocks,
 		                   (sizeof(struct lpm_trie_node) * max)) &*&
-		chars(mem_blocks, (sizeof(struct lpm_trie_node) * max), _) &*&
-		trie->node_ptr_stack |-> ?ptr_stack &*&
+		nodes_p(mem_blocks, max) &*&
 		malloc_block(ptr_stack, sizeof(struct lpm_trie_node*) * max) &*&
 		uints(ptr_stack, max, _) &*&
-		trie->next_ptr_index |-> ?next_pi &*&
 		next_pi >= 0 && next_pi < max;
 
 	predicate node_p(struct lpm_trie_node* node) =
@@ -68,6 +69,14 @@ struct lpm_trie_key {
 			true
 		:
 			node_p(node) &*& nodes_p(node + 1, count - 1);
+
+	predicate valid_ptrs(uintptr_t *ptr_stack, void *mem_blocks, int i) =
+		i == 0 ?
+			true
+		:
+			ptr_stack + i*sizeof(uintptr_t) ==
+			mem_blocks + i*sizeof(struct lpm_trie_node) &*&
+			valid_ptrs(ptr_stack, mem_blocks, i-1);
 @*/
 
 /*@
@@ -78,8 +87,8 @@ struct lpm_trie_key {
 	                                        LPM_DATA_SIZE*sizeof(uint8_t) +
 	                                        sizeof(int *) &*&
 	        (void*) &(node->l_child) + sizeof(struct lpm_trie_node *) ==
-		    (void*) &(node->r_child) &*&
-		    (void*) &(node->r_child) + sizeof(struct lpm_trie_node *) ==
+	        (void*) &(node->r_child) &*&
+	        (void*) &(node->r_child) + sizeof(struct lpm_trie_node *) ==
 	        (void*) &(node->prefixlen) &*&
 	        (void*) &(node->prefixlen) + sizeof(uint32_t) ==
 	        (void*) &(node->flags) &*&
@@ -143,11 +152,24 @@ struct lpm_trie_key {
 		}
 	}
 
+	lemma void extract_node(struct lpm_trie_node *node, int i)
+	requires nodes_p(node, ?size) &*& 0 <= i &*& i < size;
+  	ensures nodes_p(node, i) &*&
+	        node_p(node+i) &*&
+	        nodes_p(node+i+1, size-i-1);
+	{
+		open nodes_p(node, size);
+		if(i == 0){
+		} else {
+			extract_node(node+1, i-1);
+		}
+		close nodes_p(node, i);
+	}
 @*/
 
 struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie, int *value);
 /*@ requires trie_p(trie); @*/
-/*@ ensures trie_p(trie); @*/
+/*@ ensures trie_p(trie) &*& node_p(result); @*/
 
 struct lpm_trie *lpm_trie_alloc(size_t max_entries);
 /*@ requires max_entries > 0; @*/

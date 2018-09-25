@@ -1,10 +1,13 @@
-//#include "lpm_trie.h"
 #include "lpm_trie_mem.h"
+#include "../../dchain/double-chain.h"
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stddef.h>
+
+//@ #include "arith.gh"
+//@ #include <nat.gh>
 
 struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 /*@ requires max_entries > 0; @*/
@@ -20,39 +23,27 @@ struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 
 	//Allocate memory for the maximum number of nodes
 	int max_int = (int) max_entries;
-	void *node_mem_blocks = malloc(sizeof(struct lpm_trie_node) * max_int);
+	struct lpm_trie_node *node_mem_blocks = malloc(sizeof(struct lpm_trie_node) * max_int);
 
 	if(!node_mem_blocks){
 		free(trie);
 		return NULL;
 	}
 
-	//Allocate the stack of pointers to the node blocks
-	size_t node_ptr_size = sizeof(struct lpm_trie_node*);
-	uintptr_t *node_ptr_stack = malloc((int) (node_ptr_size * max_entries));
-
-	if(!node_ptr_stack){
+	//Allocate the double-chain allocator
+	int res = dchain_allocate(max_entries, &trie->dchain);
+	if(!res){
 		free(node_mem_blocks);
 		free(trie);
 		return NULL;
-	}
-
-	//Initialize pointer stack
-	for(int i = 0; i < max_int; i++)
-	//@ requires node_ptr_stack[i..max_int] |-> _;
-	//@ ensures node_ptr_stack[old_i..max_int] |-> _;
-	{
-		//@ open uints(_, _, _);
-		node_ptr_stack[i] = (uintptr_t) (node_mem_blocks + (int) ((size_t) i *
-		                                 sizeof(struct lpm_trie_node)));
 	}
 
 	trie->root = NULL;
 	trie->n_entries = 0;
 	trie->max_entries = max_entries;
 	trie->node_mem_blocks = node_mem_blocks;
-	trie->node_ptr_stack = node_ptr_stack;
-	trie->next_ptr_index = 0;
+
+	//@ bytes_to_nodes(trie->node_mem_blocks, nat_of_int(max_entries));
 	//@ close trie_p(trie);
 
 	return trie;
@@ -60,40 +51,41 @@ struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 
 struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie, int *value)
 /*@ requires trie_p(trie); @*/
-/*@ ensures trie_p(trie) &*&
-            result == NULL ? true : node_p(result); @*/
+/*@ ensures trie_p(trie) &*& node_p(result); @*/
 {
-	if(!trie)
+	int index;
+	int res = dchain_allocate_new_index(trie->dchain, &index, 1);
+	if(!res){
 		return NULL;
-
-	//Find pointer to the next free memory block
-	//@ open trie_p(trie);
-	uintptr_t *ptr_stack = trie->node_ptr_stack;
-	if(!ptr_stack)
-		return NULL;
-
-	size_t ptr_index = trie->next_ptr_index;
+	}
 
 	//Allocate next index to the new node
-	struct lpm_trie_node *node = (struct lpm_trie_node *) ptr_stack[ptr_index];
+	//struct lpm_trie_node *node = (struct lpm_trie_node *) ptr_stack[ptr_index];
+	struct lpm_trie_node *node = &(trie->node_mem_blocks[index]);
+	//@ extract_node(trie->node_mem_blocks, ptr_index);
+	//@ assert node == trie->node_mem_blocks + ptr_index * sizeof(struct lpm_trie_node);
+	//@ open node_p(node);
 
 	node->flags = 0;
 	node->value = value;
 	node->l_child = NULL;
 	node->r_child = NULL;
+	node->mem_index = index;
 
-	trie->next_ptr_index ++;
-
+	//@ close node_p(node);
+	//@ close nodes_p(trie->node_mem_blocks, trie->max_entries);
 	//@ close trie_p(trie);
 	return node;
 }
 
-void node_free(struct lpm_trie_node *ptr, struct lpm_trie *trie)
+void node_free(struct lpm_trie_node *node, struct lpm_trie *trie)
 /*@ requires true; @*/
 /*@ ensures true; @*/
 {
-	trie->next_ptr_index --;
-	trie->node_ptr_stack[trie->next_ptr_index] = (uintptr_t) ptr;
+	int index;
+	int res = dchain_rejuvenate_index(trie->dchain, node->mem_index, 0);
+	res = dchain_expire_one_index(trie->dchain, &index, 1);
+
 }
 
 void trie_free(struct lpm_trie *trie)
@@ -101,7 +93,7 @@ void trie_free(struct lpm_trie *trie)
 /*@ ensures true; @*/
 {
 	free(trie->node_mem_blocks);
-	free(trie->node_ptr_stack);
+	free(trie->dchain);
     free(trie);
 }
 
@@ -209,7 +201,7 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
 	size_t matchlen = 0;
 	int ret = 0;
 
-	if (!trie || !trie->node_mem_blocks || !trie->node_ptr_stack ||
+	if (!trie || !trie->node_mem_blocks || !trie->dchain ||
 		!key || key->prefixlen > LPM_PLEN_MAX)
 		return -1;
 
@@ -343,7 +335,7 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	size_t matchlen = 0;
 	int ret = 0;
 
-	if (!trie || !trie->node_mem_blocks || !trie->node_ptr_stack ||
+	if (!trie || !trie->node_mem_blocks || !trie->dchain ||
 		!key || key->prefixlen > LPM_PLEN_MAX)
 		return -1;
 
