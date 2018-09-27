@@ -1,5 +1,5 @@
 #include "lpm_trie_mem.h"
-#include "../../dchain/double-chain.h"
+#include "../../../vignat/nf/lib/containers/double-chain.h"
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -10,7 +10,7 @@
 //@ #include <nat.gh>
 
 struct lpm_trie *lpm_trie_alloc(size_t max_entries)
-/*@ requires max_entries > 0; @*/
+/*@ requires max_entries > 0 &*& max_entries <= IRANG_LIMIT; @*/
 /*@ ensures result == NULL ? true : trie_p(result); @*/
 {
 	if(max_entries == 0 ||
@@ -23,7 +23,7 @@ struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 
 	//Allocate memory for the maximum number of nodes
 	int max_int = (int) max_entries;
-	struct lpm_trie_node *node_mem_blocks = malloc(sizeof(struct lpm_trie_node) * max_int);
+	void *node_mem_blocks = malloc(sizeof(struct lpm_trie_node) * max_int);
 
 	if(!node_mem_blocks){
 		free(trie);
@@ -31,7 +31,7 @@ struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 	}
 
 	//Allocate the double-chain allocator
-	int res = dchain_allocate(max_entries, &trie->dchain);
+	int res = dchain_allocate(max_int, &trie->dchain);
 	if(!res){
 		free(node_mem_blocks);
 		free(trie);
@@ -50,20 +50,23 @@ struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 }
 
 struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie, int *value)
-/*@ requires trie_p(trie); @*/
-/*@ ensures trie_p(trie) &*& node_p(result); @*/
+/*@ requires trie_p(trie) &*& valid_dchain(trie); @*/
+/*@ ensures trie_p(trie) &*& 
+            result == NULL ? true : node_p(result) &*& 
+            valid_dchain(trie); @*/
 {
+	//@ open trie_p(trie);
+	//@ open valid_dchain(trie);
 	int index;
 	int res = dchain_allocate_new_index(trie->dchain, &index, 1);
 	if(!res){
+		//@ close trie_p(trie);
 		return NULL;
 	}
-
+	
 	//Allocate next index to the new node
-	//struct lpm_trie_node *node = (struct lpm_trie_node *) ptr_stack[ptr_index];
-	struct lpm_trie_node *node = &(trie->node_mem_blocks[index]);
-	//@ extract_node(trie->node_mem_blocks, ptr_index);
-	//@ assert node == trie->node_mem_blocks + ptr_index * sizeof(struct lpm_trie_node);
+	struct lpm_trie_node *node = trie->node_mem_blocks + index;
+	//@ extract_node(trie->node_mem_blocks, index);
 	//@ open node_p(node);
 
 	node->flags = 0;
@@ -73,18 +76,26 @@ struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie, int *value)
 	node->mem_index = index;
 
 	//@ close node_p(node);
-	//@ close nodes_p(trie->node_mem_blocks, trie->max_entries);
+	//@ close_nodes(trie->node_mem_blocks, index, trie->max_entries);
+	//@ close valid_dchain(trie);
 	//@ close trie_p(trie);
 	return node;
 }
 
 void node_free(struct lpm_trie_node *node, struct lpm_trie *trie)
-/*@ requires true; @*/
-/*@ ensures true; @*/
+/*@ requires trie_p(trie) &*& 
+             node_p(node) &*& 
+             valid_mem_index(trie, node); @*/
+/*@ ensures trie_p(trie); @*/
 {
 	int index;
+	
+	//@ open trie_p(trie);
+	//@ open node_p(node);
+	//@ open valid_mem_index(trie, node);
 	int res = dchain_rejuvenate_index(trie->dchain, node->mem_index, 0);
 	res = dchain_expire_one_index(trie->dchain, &index, 1);
+	//@ close trie_p(trie);
 
 }
 
@@ -92,9 +103,11 @@ void trie_free(struct lpm_trie *trie)
 /*@ requires trie_p(trie); @*/
 /*@ ensures true; @*/
 {
-	free(trie->node_mem_blocks);
+	//@ open trie_p(trie);
+	//@ nodes_to_bytes(trie->node_mem_blocks, nat_of_int(trie->max_entries));
+	free((void*) trie->node_mem_blocks);
 	free(trie->dchain);
-    free(trie);
+	free(trie);
 }
 
 int extract_bit(const uint8_t *data, size_t index)
