@@ -62,6 +62,11 @@ struct lpm_trie_key {
 		node->value |-> _ &*&
 		node->data[0..LPM_DATA_SIZE] |-> _ ;
 
+	predicate key_p(struct lpm_trie_key *key) =
+		malloc_block_lpm_trie_key(key) &*&
+		key->prefixlen |-> _ &*&
+		key->data[0..LPM_DATA_SIZE] |-> _;
+
 	predicate nodes_p(struct lpm_trie_node* node, int count) =
 		count == 0 ?
 			true
@@ -175,7 +180,7 @@ struct lpm_trie_key {
 				close nodes_p(node, int_of_nat(len));
 		}
 	}
-	
+
 	lemma void node_to_bytes(struct lpm_trie_node *node)
 	requires node_p(node);
 	ensures chars((void*) node, sizeof(struct lpm_trie_node), ?cs);
@@ -203,13 +208,13 @@ struct lpm_trie_key {
 		uchars_to_chars((void*) node->data);
 		chars_join(_node);
 	}
-	
+
 	lemma void nodes_to_bytes(struct lpm_trie_node *first, nat len)
 	requires nodes_p(first, int_of_nat(len));
 	ensures chars((void*) first, int_of_nat(len)*sizeof(struct lpm_trie_node), ?cs);
 	{
 		switch(len) {
-			case zero: 
+			case zero:
 				open nodes_p(first, int_of_nat(len));
 				close chars((void*) first, 0, _);
 				break;
@@ -223,12 +228,12 @@ struct lpm_trie_key {
 				assert int_of_nat(len)-1 == int_of_nat(n);
 				mul_subst(int_of_nat(len)-1, int_of_nat(n), sizeof(struct lpm_trie_node));
 				assert int_of_nat(len)*sizeof(struct lpm_trie_node) - sizeof(struct lpm_trie_node) ==
-				       int_of_nat(n)*sizeof(struct lpm_trie_node); 
+				       int_of_nat(n)*sizeof(struct lpm_trie_node);
 				nodes_to_bytes(first + 1, n);
 				node_to_bytes(first);
 				chars_join((void*) first);
 				//close chars((void*) first, int_of_nat(len) * sizeof(struct lpm_trie_node), _);
-					
+
 		}
 	}
 
@@ -263,7 +268,7 @@ struct lpm_trie_key {
 			close nodes_p(first+i, size-i);
 			nodes_join(first);
 		}
-	}	                                                                                                                
+	}
 @*/
 
 struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie, int *value);
@@ -281,14 +286,16 @@ void trie_free(struct lpm_trie *trie);
 /*@ ensures true; @*/
 
 bool extract_bit(const uint8_t *data, size_t index);
-/*@ requires data[0..?n] |-> _ &*& 
+/*@ requires data[0..?n] |-> _ &*&
              index > 0 &*& n > 0 &*& n > index / 8; @*/
 /*@ ensures data[0..n] |-> _;@*/
 
 size_t longest_prefix_match(const struct lpm_trie_node *node,
                             const struct lpm_trie_key *key);
-/*@ requires malloc_block_lpm_trie_key(key); @*/
-/*@ ensures malloc_block_lpm_trie_key(key); @*/
+/*@ requires node_p(node) &*& uchars(node->data, LPM_DATA_SIZE, _) &*&
+             key_p(key) &*& uchars(key->data, LPM_DATA_SIZE, _); @*/
+/*@ ensures node_p(node) &*& uchars(node->data, LPM_DATA_SIZE, _) &*&
+            key_p(key) &*& uchars(key->data, LPM_DATA_SIZE, _); @*/
 
 int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
 /*@ requires trie_p(trie) &*&

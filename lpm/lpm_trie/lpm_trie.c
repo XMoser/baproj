@@ -111,7 +111,7 @@ void node_free(struct lpm_trie_node *node, struct lpm_trie *trie)
 //}
 
 bool extract_bit(const uint8_t *data, size_t index)
-/*@ requires data[0..?n] |-> _ &*& 
+/*@ requires data[0..?n] |-> _ &*&
              index > 0 &*& n > 0 &*& n > index / 8; @*/
 /*@ ensures data[0..n] |-> _;@*/
 {
@@ -126,23 +126,48 @@ bool extract_bit(const uint8_t *data, size_t index)
 
 size_t longest_prefix_match(const struct lpm_trie_node *node,
                             const struct lpm_trie_key *key)
-/*@ requires malloc_block_lpm_trie_key(key); @*/
-/*@ ensures malloc_block_lpm_trie_key(key); @*/
+/*@ requires node_p(node) &*& uchars(node->data, LPM_DATA_SIZE, _) &*&
+             key_p(key) &*& uchars(key->data, LPM_DATA_SIZE, _); @*/
+/*@ ensures node_p(node) &*& uchars(node->data, LPM_DATA_SIZE, _) &*&
+            key_p(key) &*& uchars(key->data, LPM_DATA_SIZE, _); @*/
 {
 	size_t prefixlen = 0;
 	size_t i;
 
-	for (i = 0; i < LPM_DATA_SIZE; i++) {
+	//@ open uchars(node->data, LPM_DATA_SIZE, _);
+	//@ open uchars(key->data, LPM_DATA_SIZE, _);
+	for (i = 0; i < LPM_DATA_SIZE; i++)
+	/*@ invariant uchars((void*) node->data + i, LPM_DATA_SIZE - i, _) &*&
+	              uchars(node->data, i, _) &*&
+	              uchars((void*) key->data + i, LPM_DATA_SIZE - i, _) &*&
+	              uchars(key->data, i, _); @*/
+	{
 		size_t b;
 
-		b = 8 - fls(node->data[i] ^ key->data[i]);
+		//@ open uchars((void*) node->data + i, LPM_DATA_SIZE - i, _);
+		//@ open uchars((void*) key->data + i, LPM_DATA_SIZE - i, _);
+		uint32_t nxk_i = (uint32_t) node->data[i] ^ key->data[i];
+		b = 8 - (uint32_t) fls(nxk_i);
 		prefixlen += b;
 
 		if (prefixlen >= node->prefixlen || prefixlen >= key->prefixlen)
+			//@ close uchars(node->data + i, LPM_DATA_SIZE - i, _);
+			//@ close uchars(key->data + i, LPM_DATA_SIZE - i, _);
+			//@ uchars_join(node->data);
+			//@ uchars_join(key->data);
 			return min(node->prefixlen, key->prefixlen);
 
 		if (b < 8)
+			//@ close uchars(node->data + i, LPM_DATA_SIZE - i, _);
+			//@ close uchars(key->data + i, LPM_DATA_SIZE - i, _);
+			//@ uchars_join(node->data);
+			//@ uchars_join(key->data);
 			break;
+
+		//@ close uchars(node->data + i, 1, _);
+		//@ uchars_join(node->data);
+		//@ close uchars(key->data + i, 1, _);
+		//@ uchars_join(key->data);
 	}
 
 	return prefixlen;
