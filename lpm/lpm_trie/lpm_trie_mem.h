@@ -263,7 +263,7 @@ struct lpm_trie_key {
 			close nodes_p(first+i, size-i);
 			nodes_join(first);
 		}
-	}
+	}	                                                                                                                
 @*/
 
 struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie, int *value);
@@ -280,9 +280,10 @@ void trie_free(struct lpm_trie *trie);
 /*@ requires trie_p(trie); @*/
 /*@ ensures true; @*/
 
-int extract_bit(const uint8_t *data, size_t index);
-/*@ requires true; @*/
-/*@ ensures true; @*/
+bool extract_bit(const uint8_t *data, size_t index);
+/*@ requires data[0..?n] |-> _ &*& 
+             index > 0 &*& n > 0 &*& n > index / 8; @*/
+/*@ ensures data[0..n] |-> _;@*/
 
 size_t longest_prefix_match(const struct lpm_trie_node *node,
                             const struct lpm_trie_key *key);

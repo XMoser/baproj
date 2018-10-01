@@ -51,8 +51,8 @@ struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 
 struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie, int *value)
 /*@ requires trie_p(trie) &*& valid_dchain(trie); @*/
-/*@ ensures trie_p(trie) &*& 
-            result == NULL ? true : node_p(result) &*& 
+/*@ ensures trie_p(trie) &*&
+            result == NULL ? true : node_p(result) &*&
             valid_dchain(trie); @*/
 {
 	//@ open trie_p(trie);
@@ -63,7 +63,7 @@ struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie, int *value)
 		//@ close trie_p(trie);
 		return NULL;
 	}
-	
+
 	//Allocate next index to the new node
 	struct lpm_trie_node *node = trie->node_mem_blocks + index;
 	//@ extract_node(trie->node_mem_blocks, index);
@@ -83,13 +83,13 @@ struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie, int *value)
 }
 
 void node_free(struct lpm_trie_node *node, struct lpm_trie *trie)
-/*@ requires trie_p(trie) &*& 
-             node_p(node) &*& 
+/*@ requires trie_p(trie) &*&
+             node_p(node) &*&
              valid_mem_index(trie, node); @*/
 /*@ ensures trie_p(trie); @*/
 {
 	int index;
-	
+
 	//@ open trie_p(trie);
 	//@ open node_p(node);
 	//@ open valid_mem_index(trie, node);
@@ -99,22 +99,29 @@ void node_free(struct lpm_trie_node *node, struct lpm_trie *trie)
 
 }
 
-void trie_free(struct lpm_trie *trie)
-/*@ requires trie_p(trie); @*/
-/*@ ensures true; @*/
-{
-	//@ open trie_p(trie);
-	//@ nodes_to_bytes(trie->node_mem_blocks, nat_of_int(trie->max_entries));
-	free((void*) trie->node_mem_blocks);
-	free(trie->dchain);
-	free(trie);
-}
+//void trie_free(struct lpm_trie *trie)
+///*@ requires trie_p(trie); @*/
+///*@ ensures true; @*/
+//{
+//	//@ open trie_p(trie);
+//	//@ nodes_to_bytes(trie->node_mem_blocks, nat_of_int(trie->max_entries));
+//	free((void*) trie->node_mem_blocks);
+//	free(trie->dchain);
+//	free(trie);
+//}
 
-int extract_bit(const uint8_t *data, size_t index)
-/*@ requires true; @*/
-/*@ ensures true; @*/
+bool extract_bit(const uint8_t *data, size_t index)
+/*@ requires data[0..?n] |-> _ &*& 
+             index > 0 &*& n > 0 &*& n > index / 8; @*/
+/*@ ensures data[0..n] |-> _;@*/
 {
+	//show index > 0 => index/8 > 0;
+	//@ div_rem(index, 8);
+	//@ uchars_split(data, index/8);
+	//@ open uchars(data + index/8, n - index/8, _);
 	return !!(data[index / 8] & (1 << (7 - (index % 8))));
+	//@ close uchars(data + index/8, n - index/8, _);
+	//@ uchars_join(data);
 }
 
 size_t longest_prefix_match(const struct lpm_trie_node *node,
