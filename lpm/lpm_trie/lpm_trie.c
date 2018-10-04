@@ -135,9 +135,10 @@ size_t longest_prefix_match(const struct lpm_trie_node *node,
 	size_t i;
 
 	//@ open uchars(node->data, LPM_DATA_SIZE, _);
-	//@ open uchars(key->data, LPM_DATA_SIZE, _);
+	//@ open uchars(key->data, LPM_DATA_SIZE, _);	
 	for (i = 0; i < LPM_DATA_SIZE; i++)
-	/*@ invariant uchars((void*) node->data + i, LPM_DATA_SIZE - i, _) &*&
+	/*@ invariant node_p(node) &*& key_p(key) &*&
+	              uchars((void*) node->data + i, LPM_DATA_SIZE - i, _) &*&
 	              uchars(node->data, i, _) &*&
 	              uchars((void*) key->data + i, LPM_DATA_SIZE - i, _) &*&
 	              uchars(key->data, i, _); @*/
@@ -147,26 +148,39 @@ size_t longest_prefix_match(const struct lpm_trie_node *node,
 		//@ open uchars((void*) node->data + i, LPM_DATA_SIZE - i, _);
 		//@ open uchars((void*) key->data + i, LPM_DATA_SIZE - i, _);
 		uint32_t nxk_i = (uint32_t) node->data[i] ^ key->data[i];
-		b = 8 - (uint32_t) fls(nxk_i);
+		int last_set = fls(nxk_i);
+		b = 8 - (uint32_t) last_set;
 		prefixlen += b;
 
-		if (prefixlen >= node->prefixlen || prefixlen >= key->prefixlen)
-			//@ close uchars(node->data + i, LPM_DATA_SIZE - i, _);
-			//@ close uchars(key->data + i, LPM_DATA_SIZE - i, _);
+		//@ open node_p(node);
+		//@ open key_p(key);
+		if (prefixlen >= node->prefixlen || prefixlen >= key->prefixlen){
+			uint32_t node_plen = node->prefixlen;
+			uint32_t key_plen = key->prefixlen;
+			//@ close node_p(node);
+			//@ close key_p(key);
+			//@ close uchars((void*) node->data + i, LPM_DATA_SIZE - i, _);
+			//@ close uchars((void*) key->data + i, LPM_DATA_SIZE - i, _);
 			//@ uchars_join(node->data);
 			//@ uchars_join(key->data);
-			return min(node->prefixlen, key->prefixlen);
+			return min(node_plen, key_plen);
+		}	
 
-		if (b < 8)
-			//@ close uchars(node->data + i, LPM_DATA_SIZE - i, _);
-			//@ close uchars(key->data + i, LPM_DATA_SIZE - i, _);
+		if (b < 8){
+			//@ close node_p(node);
+			//@ close key_p(key);
+			//@ close uchars((void*) node->data + i, LPM_DATA_SIZE - i, _);
+			//@ close uchars((void*) key->data + i, LPM_DATA_SIZE - i, _);
 			//@ uchars_join(node->data);
 			//@ uchars_join(key->data);
 			break;
+		}	
 
-		//@ close uchars(node->data + i, 1, _);
+		//@ close node_p(node);
+		//@ close key_p(key);
+		//@ close uchars((void*) node->data + i, 1, _);
 		//@ uchars_join(node->data);
-		//@ close uchars(key->data + i, 1, _);
+		//@ close uchars((void*) key->data + i, 1, _);
 		//@ uchars_join(key->data);
 	}
 
