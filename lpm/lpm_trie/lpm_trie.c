@@ -135,7 +135,7 @@ size_t longest_prefix_match(const struct lpm_trie_node *node,
 	size_t i;
 
 	//@ open uchars(node->data, LPM_DATA_SIZE, _);
-	//@ open uchars(key->data, LPM_DATA_SIZE, _);	
+	//@ open uchars(key->data, LPM_DATA_SIZE, _);
 	for (i = 0; i < LPM_DATA_SIZE; i++)
 	/*@ invariant node_p(node) &*& key_p(key) &*&
 	              uchars((void*) node->data + i, LPM_DATA_SIZE - i, _) &*&
@@ -164,7 +164,7 @@ size_t longest_prefix_match(const struct lpm_trie_node *node,
 			//@ uchars_join(node->data);
 			//@ uchars_join(key->data);
 			return min(node_plen, key_plen);
-		}	
+		}
 
 		if (b < 8){
 			//@ close node_p(node);
@@ -174,7 +174,7 @@ size_t longest_prefix_match(const struct lpm_trie_node *node,
 			//@ uchars_join(node->data);
 			//@ uchars_join(key->data);
 			break;
-		}	
+		}
 
 		//@ close node_p(node);
 		//@ close key_p(key);
@@ -188,19 +188,21 @@ size_t longest_prefix_match(const struct lpm_trie_node *node,
 }
 
 int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
-/*@ requires trie_p(trie) &*&
-             malloc_block_lpm_trie_key(key); @*/
-/*@ ensures trie_p(trie) &*&
-            malloc_block_lpm_trie_key(key); @*/
+/*@ requires trie_p(trie) &*& key_p(key); @*/
+/*@ ensures trie_p(trie) &*& key_p(key); @*/
 {
 	struct lpm_trie_node *node;
 	struct lpm_trie_node *found = NULL;
-	if(!key)
-		return NULL;
+	//if(!key)
+		//return NULL;
 
 	/* Start walking the trie from the root node ... */
 
-	for (node = trie->root; node;) {
+	//@ open trie_p(trie);
+	//@ extract_node_ptr(trie->node_mem_blocks, trie->root);
+	for (node = trie->root; node;)
+	//@ invariant node_p(node) &*& key_p(key);
+	{
 		unsigned int next_bit;
 		size_t matchlen;
 
@@ -237,7 +239,6 @@ int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 		} else {
 			node = node->r_child;
 		}
-		//node = node->child[next_bit];
 	}
 
 	if (!found)

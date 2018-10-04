@@ -73,6 +73,12 @@ struct lpm_trie_key {
 		:
 			node_p(node) &*& nodes_p(node + 1, count - 1);
 
+	predicate nodes_p2(struct lpm_trie_node *node, int count) =
+		count == 0 ?
+			true
+		:
+			node_p(node) &*& nodes_p2(node->l_child, count - 1);
+
 	predicate valid_ptrs(uintptr_t *ptr_stack, void *mem_blocks, int i) =
 		i == 0 ?
 			true
@@ -250,6 +256,20 @@ struct lpm_trie_key {
 		}
 		close nodes_p(node, i);
 	}
+	
+	lemma void extract_node_ptr(struct lpm_trie_node *first, struct lpm_trie_node *node)
+	requires nodes_p(first, ?size) &*& 
+	         ((void*)node - (void*)first) / sizeof(struct lpm_trie_node) >= 0 &*&
+	         ((void*)node - (void*)first) / sizeof(struct lpm_trie_node) < size &*&
+	         ((void*)node - (void*)first) % sizeof(struct lpm_trie_node) == 0;
+  	ensures nodes_p(first, ((void*)node - (void*)first) / sizeof(struct lpm_trie_node)) &*&
+	        node_p(node) &*&
+	        nodes_p(first + ((void*)node - (void*)first) / sizeof(struct lpm_trie_node) + 1, 
+	                size - ((void*)node - (void*)first) / sizeof(struct lpm_trie_node) -1);
+	{
+		div_rem((void*)node - (void*)first, sizeof(struct lpm_trie_node));        
+		extract_node(first, ((void*)node - (void*)first) / sizeof(struct lpm_trie_node));
+	}
 
 	lemma void nodes_join(struct lpm_trie_node *node);
 	requires nodes_p(node, ?n) &*& nodes_p(node+n, ?n0);
@@ -298,10 +318,8 @@ size_t longest_prefix_match(const struct lpm_trie_node *node,
             key_p(key) &*& uchars(key->data, LPM_DATA_SIZE, _); @*/
 
 int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
-/*@ requires trie_p(trie) &*&
-             malloc_block_lpm_trie_key(key); @*/
-/*@ ensures trie_p(trie) &*&
-            malloc_block_lpm_trie_key(key); @*/
+/*@ requires trie_p(trie) &*& key_p(key); @*/
+/*@ ensures trie_p(trie) &*& key_p(key); @*/
 
 int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value);
 /*@ requires trie_p(trie) &*&
