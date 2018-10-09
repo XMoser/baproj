@@ -17,8 +17,8 @@
 struct lpm_trie_node;
 
 struct lpm_trie_node {
-	struct lpm_trie_node *l_child;
-	struct lpm_trie_node *r_child;
+	int l_child;
+	int r_child;
 	int mem_index;
 	uint32_t prefixlen;
 	uint32_t flags;
@@ -40,44 +40,42 @@ struct lpm_trie_key {
 };
 
 /*@
-	predicate trie_p(struct lpm_trie *trie) =
+	predicate trie_p(struct lpm_trie *trie, int max) =
 		malloc_block_lpm_trie(trie) &*&
 		trie->root |-> _ &*&
-		trie->n_entries |-> _ &*&
-		trie->max_entries |-> ?max &*&
+		trie->n_entries |-> ?n &*&
+		n >= 0 &*&
+		trie->max_entries |-> max &*&
 		max > 0 &*&
 		trie->dchain |-> ?dchain &*&
 		double_chainp(?ch, dchain) &*&
 		trie->node_mem_blocks |-> ?mem_blocks &*&
 		malloc_block_chars((void*)mem_blocks,
 		                   (sizeof(struct lpm_trie_node) * max)) &*&
-		nodes_p(mem_blocks, max);
+		nodes_p(mem_blocks, max, max);
 
-	predicate node_p(struct lpm_trie_node* node) =
-		node->l_child |-> _ &*&
-		node->r_child |-> _ &*&
-		node->mem_index |-> _ &*&
+	predicate node_p(struct lpm_trie_node* node, int max_i) =
+		node->l_child |-> ?l &*&
+		node->r_child |-> ?r &*&
+		node->mem_index |-> ?m &*&
 		node->prefixlen |-> _ &*&
 		node->flags |-> _ &*&
 		node->value |-> _ &*&
-		node->data[0..LPM_DATA_SIZE] |-> _ ;
+		node->data[0..LPM_DATA_SIZE] |-> _ &*&
+		l >= 0 &*& l < max_i &*&
+		r >= 0 &*& r < max_i &*&
+		m >= 0 &*& m < max_i;
 
 	predicate key_p(struct lpm_trie_key *key) =
 		malloc_block_lpm_trie_key(key) &*&
 		key->prefixlen |-> _ &*&
 		key->data[0..LPM_DATA_SIZE] |-> _;
 
-	predicate nodes_p(struct lpm_trie_node* node, int count) =
+	predicate nodes_p(struct lpm_trie_node* node, int count, int max_i) =
 		count == 0 ?
 			true
 		:
-			node_p(node) &*& nodes_p(node + 1, count - 1);
-
-	predicate nodes_p2(struct lpm_trie_node *node, int count) =
-		count == 0 ?
-			true
-		:
-			node_p(node) &*& nodes_p2(node->l_child, count - 1);
+			node_p(node, max_i) &*& nodes_p(node+1, count-1, max_i);
 
 	predicate valid_ptrs(uintptr_t *ptr_stack, void *mem_blocks, int i) =
 		i == 0 ?
@@ -103,14 +101,13 @@ struct lpm_trie_key {
 /*@
 	lemma void node_layout_assumptions(struct lpm_trie_node *node);
 	requires true;
-	ensures sizeof(struct lpm_trie_node) == 2*sizeof(struct lpm_trie_node *) +
-	                                        sizeof(int) +
+	ensures sizeof(struct lpm_trie_node) == 3*sizeof(int) +
 	                                        2*sizeof(uint32_t) +
 	                                        LPM_DATA_SIZE*sizeof(uint8_t) +
 	                                        sizeof(int *) &*&
-	        (void*) &(node->l_child) + sizeof(struct lpm_trie_node *) ==
+	        (void*) &(node->l_child) + sizeof(int) ==
 	        (void*) &(node->r_child) &*&
-	        (void*) &(node->r_child) + sizeof(struct lpm_trie_node *) ==
+	        (void*) &(node->r_child) + sizeof(int) ==
 	        (void*) &(node->mem_index) &*&
 	        (void*) &(node->mem_index) + sizeof(int) ==
 	        (void*) &(node->prefixlen) &*&
@@ -130,40 +127,47 @@ struct lpm_trie_key {
 	        dchain_index_range_fp(dchain_allocate_fp(ch, ni, 1)) == max &*&
 	        dchain_high_fp(dchain_allocate_fp(ch, ni, 1)) <= 1;
 
-	lemma void bytes_to_node(void* node)
-	requires chars((void*)node, sizeof(struct lpm_trie_node), ?chs);
+	fixpoint bool char_equals(int i, char c){
+		return i == c;
+	}
+
+	lemma void bytes_to_node(void* node, int max_i)
+	requires chars((void*)node, sizeof(struct lpm_trie_node), ?chs) &*&
+	         forall(take(3*sizeof(int), chs), char_equals(0))) &*&
+	         max_i > 0;
 	ensures node_p(node);
 	{
 		struct lpm_trie_node* node_s = node;
 		node_layout_assumptions(node_s);
-		chars_split((void*) node, sizeof(void*));
-		chars_to_pointer((void*) &(node_s->l_child));
-		chars_split((void*) node + sizeof(void*), sizeof(void*));
-		chars_to_pointer((void*) &(node_s->r_child));
-	 	chars_split((void*) node + 2*sizeof(void*), sizeof(int));
+		chars_split((void*) node, sizeof(int));
+		chars_to_integer((void*) &(node_s->l_child));
+		chars_split((void*) node + sizeof(int), sizeof(int));
+		chars_to_integer((void*) &(node_s->r_child));
+	 	chars_split((void*) node + 2*sizeof(int), sizeof(int));
 		chars_to_integer((void*) &(node_s->mem_index));
-		chars_split((void*) node + 2*sizeof(void*) + sizeof(int), sizeof(uint32_t));
+		chars_split((void*) node + 3*sizeof(int), sizeof(uint32_t));
 		chars_to_u_integer((void*) &(node_s->prefixlen));
-		chars_split((void*) node + 2*sizeof(void*) + sizeof(int) + sizeof(uint32_t),
+		chars_split((void*) node + 3*sizeof(int) + sizeof(uint32_t),
 		            sizeof(uint32_t));
 		chars_to_u_integer((void*) &(node_s->flags));
-		chars_split((void*) node + 2*sizeof(void*) + sizeof(int) + 2*sizeof(uint32_t),
+		chars_split((void*) node + 3*sizeof(int) + 2*sizeof(uint32_t),
 		            sizeof(void *));
 		chars_to_pointer((void*) &(node_s->value));
-		chars_split((void*) node + 2*sizeof(void*) + sizeof(int) + 2*sizeof(uint32_t) +
+		chars_split((void*) node + 3*sizeof(int) + 2*sizeof(uint32_t) +
 		            sizeof(void*), LPM_DATA_SIZE*sizeof(uint8_t));
-		close lpm_trie_node_l_child(node, _);
-		close lpm_trie_node_r_child(node, _);
-		close lpm_trie_node_mem_index(node, _);
+		close lpm_trie_node_l_child(node, 0);
+		close lpm_trie_node_r_child(node, 0);
+		close lpm_trie_node_mem_index(node, 0);
 		close lpm_trie_node_prefixlen(node, _);
 		close lpm_trie_node_flags(node, _);
 		close lpm_trie_node_value(node, _);
 		//close lpm_trie_node_data(node, _);
-		close node_p(node);
+		close node_p(node, max_i);
 	}
 
-	lemma void bytes_to_nodes(void* node, nat len)
-	requires chars((void*)node, int_of_nat(len)*sizeof(struct lpm_trie_node), ?chs);
+	lemma void bytes_to_nodes(void* node, nat len, int max_i)
+	requires chars((void*)node, int_of_nat(len)*sizeof(struct lpm_trie_node), ?chs) &*&
+	         max_i > 0;
 	ensures nodes_p(node, int_of_nat(len));
 	{
 		switch(len) {
@@ -181,9 +185,9 @@ struct lpm_trie_key {
 				mul_subst(int_of_nat(len)-1, int_of_nat(n), sizeof(struct lpm_trie_node));
 				assert int_of_nat(len)*sizeof(struct lpm_trie_node) - sizeof(struct lpm_trie_node) ==
 				       int_of_nat(n)*sizeof(struct lpm_trie_node);
-				bytes_to_nodes(node+sizeof(struct lpm_trie_node), n);
-				bytes_to_node(node);
-				close nodes_p(node, int_of_nat(len));
+				bytes_to_nodes(node+sizeof(struct lpm_trie_node), n, max_i);
+				bytes_to_node(node, max_i);
+				close nodes_p(node, int_of_nat(len), max_i);
 		}
 	}
 
@@ -195,9 +199,9 @@ struct lpm_trie_key {
 		node_layout_assumptions(node);
 		open node_p(node);
 		open lpm_trie_node_l_child(node, _);
-		pointer_to_chars((void*) &node->l_child);
+		integer_to_chars((void*) &node->l_child);
 		open lpm_trie_node_r_child(node, _);
-		pointer_to_chars((void*) &node->r_child);
+		integer_to_chars((void*) &node->r_child);
 		chars_join(_node);
 		open lpm_trie_node_mem_index(node, _);
 		integer_to_chars((void*) &node->mem_index);
@@ -244,65 +248,65 @@ struct lpm_trie_key {
 	}
 
 	lemma void extract_node(struct lpm_trie_node *node, int i)
-	requires nodes_p(node, ?size) &*& 0 <= i &*& i < size;
-  	ensures nodes_p(node, i) &*&
-	        node_p(node+i) &*&
-	        nodes_p(node+i+1, size-i-1);
+	requires nodes_p(node, ?size, ?max_i) &*& 0 <= i &*& i < size;
+  	ensures nodes_p(node, i, max_i) &*&
+	        node_p(node+i, max_i) &*&
+	        nodes_p(node+i+1, size-i-1, max_i);
 	{
-		open nodes_p(node, size);
+		open nodes_p(node, size, max_i);
 		if(i == 0){
 		} else {
 			extract_node(node+1, i-1);
 		}
-		close nodes_p(node, i);
+		close nodes_p(node, i, max_i);
 	}
-	
+
 	lemma void extract_node_ptr(struct lpm_trie_node *first, struct lpm_trie_node *node)
-	requires nodes_p(first, ?size) &*& 
+	requires nodes_p(first, ?size, ?max_i) &*&
 	         ((void*)node - (void*)first) / sizeof(struct lpm_trie_node) >= 0 &*&
 	         ((void*)node - (void*)first) / sizeof(struct lpm_trie_node) < size &*&
 	         ((void*)node - (void*)first) % sizeof(struct lpm_trie_node) == 0;
-  	ensures nodes_p(first, ((void*)node - (void*)first) / sizeof(struct lpm_trie_node)) &*&
-	        node_p(node) &*&
-	        nodes_p(first + ((void*)node - (void*)first) / sizeof(struct lpm_trie_node) + 1, 
-	                size - ((void*)node - (void*)first) / sizeof(struct lpm_trie_node) -1);
+  	ensures nodes_p(first, ((void*)node - (void*)first) / sizeof(struct lpm_trie_node), max_i) &*&
+	        node_p(node, max_i) &*&
+	        nodes_p(first + ((void*)node - (void*)first) / sizeof(struct lpm_trie_node) + 1,
+	                size - ((void*)node - (void*)first) / sizeof(struct lpm_trie_node) -1, max_i);
 	{
-		div_rem((void*)node - (void*)first, sizeof(struct lpm_trie_node));        
+		div_rem((void*)node - (void*)first, sizeof(struct lpm_trie_node));
 		extract_node(first, ((void*)node - (void*)first) / sizeof(struct lpm_trie_node));
 	}
 
 	lemma void nodes_join(struct lpm_trie_node *node);
-	requires nodes_p(node, ?n) &*& nodes_p(node+n, ?n0);
-	ensures nodes_p(node, n+n0);
+	requires nodes_p(node, ?n, ?max_i) &*& nodes_p(node+n, ?n0, max_i);
+	ensures nodes_p(node, n+n0, max_i);
 
 	lemma void close_nodes(struct lpm_trie_node *first, int i, int size)
 	requires size > i &*& i >= 0 &*&
-	         (i == 0 ? true : nodes_p(first, i)) &*&
-	         node_p(first+i) &*&
-	         nodes_p(first+i+1, size-i-1);
-	ensures nodes_p(first, size);
+	         (i == 0 ? true : nodes_p(first, i, ?max_i)) &*&
+	         node_p(first+i, max_i) &*&
+	         nodes_p(first+i+1, size-i-1, max_i);
+	ensures nodes_p(first, size, max_i);
 	{
 		if(i == 0){
-			close nodes_p(first, size);
+			close nodes_p(first, size, max_i);
 		} else {
-			close nodes_p(first+i, size-i);
+			close nodes_p(first+i, size-i, max_i);
 			nodes_join(first);
 		}
 	}
 @*/
 
 struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie, int *value);
-/*@ requires trie_p(trie) &*& valid_dchain(trie); @*/
-/*@ ensures trie_p(trie) &*&
-            result == NULL ? true : node_p(result) &*&
-            valid_dchain(trie); @*/
+/*@ requires trie_p(trie, ?max_i) &*& valid_dchain(trie); @*/
+/*@ ensures trie_p(trie, max_i) &*&
+            result == NULL ? true : node_p(result, max_i) &*&
+            valid_dchain(trie, max_i); @*/
 
 struct lpm_trie *lpm_trie_alloc(size_t max_entries);
 /*@ requires max_entries > 0 &*& max_entries <= IRANG_LIMIT; @*/
-/*@ ensures result == NULL ? true : trie_p(result); @*/
+/*@ ensures result == NULL ? true : trie_p(result, max_entries); @*/
 
 void trie_free(struct lpm_trie *trie);
-/*@ requires trie_p(trie); @*/
+/*@ requires trie_p(trie, _); @*/
 /*@ ensures true; @*/
 
 bool extract_bit(const uint8_t *data, size_t index);
@@ -312,9 +316,9 @@ bool extract_bit(const uint8_t *data, size_t index);
 
 size_t longest_prefix_match(const struct lpm_trie_node *node,
                             const struct lpm_trie_key *key);
-/*@ requires node_p(node) &*& uchars(node->data, LPM_DATA_SIZE, _) &*&
+/*@ requires node_p(node, ?max_i) &*& uchars(node->data, LPM_DATA_SIZE, _) &*&
              key_p(key) &*& uchars(key->data, LPM_DATA_SIZE, _); @*/
-/*@ ensures node_p(node) &*& uchars(node->data, LPM_DATA_SIZE, _) &*&
+/*@ ensures node_p(node, max_i) &*& uchars(node->data, LPM_DATA_SIZE, _) &*&
             key_p(key) &*& uchars(key->data, LPM_DATA_SIZE, _); @*/
 
 int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
