@@ -21,6 +21,8 @@ struct lpm_trie_node {
 	int l_child;
 	int r_child;
 	int mem_index;
+	int has_l_child;
+	int has_r_child;
 	uint32_t prefixlen;
 	uint32_t flags;
 	int *value;
@@ -60,6 +62,8 @@ struct lpm_trie_key {
 		node->l_child |-> _ &*&
 		node->r_child |-> _ &*&
 		node->mem_index |-> _ &*&
+		node->has_l_child |-> _ &*&
+		node->has_r_child |-> _ &*&
 		node->prefixlen |-> _ &*&
 		node->flags |-> _ &*&
 		node->value |-> _ &*&
@@ -69,6 +73,8 @@ struct lpm_trie_key {
 		node->l_child |-> ?l &*&
 		node->r_child |-> ?r &*&
 		node->mem_index |-> ?m &*&
+		node->has_l_child |-> _ &*&
+		node->has_r_child |-> _ &*&
 		node->prefixlen |-> _ &*&
 		node->flags |-> _ &*&
 		node->value |-> _ &*&
@@ -118,7 +124,7 @@ struct lpm_trie_key {
 /*@
 	lemma void node_layout_assumptions(struct lpm_trie_node *node);
 	requires true;
-	ensures sizeof(struct lpm_trie_node) == 3*sizeof(int) +
+	ensures sizeof(struct lpm_trie_node) == 5*sizeof(int) +
 	                                        2*sizeof(uint32_t) +
 	                                        LPM_DATA_SIZE*sizeof(uint8_t) +
 	                                        sizeof(int *) &*&
@@ -127,11 +133,16 @@ struct lpm_trie_key {
 	        (void*) &(node->r_child) + sizeof(int) ==
 	        (void*) &(node->mem_index) &*&
 	        (void*) &(node->mem_index) + sizeof(int) ==
+	        (void*) &(node->has_l_child) &*&
+	        (void*) &(node->has_l_child) + sizeof(int) ==
+	        (void*) &(node->has_r_child) &*&
+	        (void*) &(node->has_r_child) + sizeof(int) ==
 	        (void*) &(node->prefixlen) &*&
 	        (void*) &(node->prefixlen) + sizeof(uint32_t) ==
 	        (void*) &(node->flags) &*&
-	        (void*) &(node->flags) + sizeof(uint32_t) == (void*) &(node->value) &*&
-	        (void*) &(node->value) + sizeof(int *) ==
+	        (void*) &(node->flags) + sizeof(uint32_t) == 
+	        (void*) &(node->value) &*&
+	        (void*) &(node->value) + sizeof(int*) ==
 	        (void*) node->data;
 @*/
 
@@ -160,18 +171,24 @@ struct lpm_trie_key {
 		chars_to_integer((void*) &(node_s->r_child));
 	 	chars_split((void*) node + 2*sizeof(int), sizeof(int));
 		chars_to_integer((void*) &(node_s->mem_index));
-		chars_split((void*) node + 3*sizeof(int), sizeof(uint32_t));
+		chars_split((void*) node + 3*sizeof(int), sizeof(int));
+		chars_to_integer((void*) &(node_s->has_l_child));
+		chars_split((void*) node + 4*sizeof(int), sizeof(int));
+		chars_to_integer((void*) &(node_s->has_r_child));
+		chars_split((void*) node + 5*sizeof(int), sizeof(uint32_t));
 		chars_to_u_integer((void*) &(node_s->prefixlen));
-		chars_split((void*) node + 3*sizeof(int) + sizeof(uint32_t),
+		chars_split((void*) node + 5*sizeof(int) + sizeof(uint32_t),
 		            sizeof(uint32_t));
 		chars_to_u_integer((void*) &(node_s->flags));
-		chars_split((void*) node + 3*sizeof(int) + 2*sizeof(uint32_t),
-		            sizeof(void *));
+		chars_split((void*) node + 5*sizeof(int) + 2*sizeof(uint32_t),
+		            sizeof(int*));
 		chars_to_pointer((void*) &(node_s->value));
-		chars_split((void*) node + 3*sizeof(int) + 2*sizeof(uint32_t) +
-		            sizeof(void*), LPM_DATA_SIZE*sizeof(uint8_t));
+		chars_split((void*) node + 5*sizeof(int) + 2*sizeof(uint32_t) +
+		            sizeof(int*), LPM_DATA_SIZE*sizeof(uint8_t));
 		close lpm_trie_node_l_child(node, _);
 		close lpm_trie_node_r_child(node, _);
+		close lpm_trie_node_has_l_child(node, _);
+		close lpm_trie_node_has_r_child(node, _);
 		close lpm_trie_node_mem_index(node, _);
 		close lpm_trie_node_prefixlen(node, _);
 		close lpm_trie_node_flags(node, _);
@@ -219,6 +236,12 @@ struct lpm_trie_key {
 		chars_join(_node);
 		open lpm_trie_node_mem_index(node, _);
 		integer_to_chars((void*) &node->mem_index);
+		chars_join(_node);
+		open lpm_trie_node_has_l_child(node, _);
+		integer_to_chars((void*) &node->has_l_child);
+		chars_join(_node);
+		open lpm_trie_node_has_r_child(node, _);
+		integer_to_chars((void*) &node->has_r_child);
 		chars_join(_node);
 		open lpm_trie_node_prefixlen(node, _);
 		u_integer_to_chars((void*) &node->prefixlen);
