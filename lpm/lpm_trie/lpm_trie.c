@@ -32,6 +32,8 @@ void init_nodes_mem(const void *node_mem_blocks, size_t max_entries)
 		cur->l_child = 0;
 		cur->r_child = 0;
 		cur->mem_index = 0;
+		cur->has_l_child = 0;
+		cur->has_r_child = 0;
 		//@ close node_p(node_mem_blocks + (max_entries-1-i)*sizeof(struct lpm_trie_node), max_entries);
 		//@ close nodes_p(node_mem_blocks + (max_entries-1-i)*sizeof(struct lpm_trie_node), i+1, max_entries);
 	}
@@ -104,8 +106,8 @@ struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie, int *value)
 
 	node->flags = 0;
 	node->value = value;
-	node->l_child = NULL;
-	node->r_child = NULL;
+	//node->l_child = NULL;
+	//node->r_child = NULL;
 	node->mem_index = index;
 
 	//@ close node_p(node, max_i);
@@ -266,7 +268,7 @@ int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 		if (matchlen < node->prefixlen) {
 			//@ close node_p(node, max_i);
 			break;
-		}	
+		}
 
 		/* Consider this node as return candidate unless it is an
 		 * artificially added intermediate one.
@@ -278,7 +280,7 @@ int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 		 * become more specific. Determine the next bit in the key and
 		 * traverse down.
 		 */
-		
+
 		/* This is there only for verification,
 		 * TODO: restrict the value of node->prefixlen and the result
 		 * of longest_prefix_match.
@@ -287,18 +289,26 @@ int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 			//@ close node_p(node, max_i);
 			break;
 		}
-		
+
 		old_id = node_id;
 		//@ open key_p(key);
 		next_bit = extract_bit(key->data, node->prefixlen);
 		//@ close key_p(key);
 		if(!next_bit){
 			//node = node->l_child;
+			if(!node->has_l_child){
+				//@ close node_p(node, max_i);
+				break;
+			}
 			node_id = node->l_child;
 			//@ close node_p(node, max_i);
 			//@ close_nodes(node_base, old_id, max_i);
 			//@ extract_node(node_base, node_id);
 		} else {
+			if(!node->has_r_child){
+				//@ close node_p(node, max_i);
+				break;
+			}
 			node_id = node->r_child;
 			//@ close node_p(node, max_i);
 			//@ close_nodes(node_base, old_id, max_i);
@@ -356,8 +366,8 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
 	trie->n_entries++;
 
 	new_node->prefixlen = key->prefixlen;
-    new_node->l_child = NULL;
-    new_node->r_child = NULL;
+	new_node->l_child = NULL;
+	new_node->r_child = NULL;
 	memcpy(new_node->data, key->data, LPM_DATA_SIZE);
 
 	/* Now find a slot to attach the new node. To do that, walk the tree
