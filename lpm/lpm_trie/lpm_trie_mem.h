@@ -140,7 +140,7 @@ struct lpm_trie_key {
 	        (void*) &(node->prefixlen) &*&
 	        (void*) &(node->prefixlen) + sizeof(uint32_t) ==
 	        (void*) &(node->flags) &*&
-	        (void*) &(node->flags) + sizeof(uint32_t) == 
+	        (void*) &(node->flags) + sizeof(uint32_t) ==
 	        (void*) &(node->value) &*&
 	        (void*) &(node->value) + sizeof(int*) ==
 	        (void*) node->data;
@@ -376,10 +376,10 @@ int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
 /*@ ensures trie_p(trie, n, max_i) &*& key_p(key); @*/
 
 int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value);
-/*@ requires trie_p(trie, ?n, ?max_i) &*&
-             malloc_block_lpm_trie_key(key); @*/
-/*@ ensures trie_p(trie, ?n2, max_i) &*& n2 > 0 &*&
-            malloc_block_lpm_trie_key(key); @*/
+/*@ requires trie_p(trie, _, ?max_i) &*& valid_dchain(trie) &*& 
+             key_p(key) &*& integer(value, _); @*/
+/*@ ensures trie_p(trie, _, max_i) &*& valid_dchain(trie) &*& 
+            key_p(key) &*& integer(value, _); @*/
 
 int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
 /*@ requires trie_p(trie, ?n, ?max_i) &*& n > 0 &*&

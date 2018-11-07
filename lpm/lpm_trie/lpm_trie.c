@@ -334,40 +334,50 @@ int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 }
 
 int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value)
-/*@ requires trie_p(trie, ?n, ?max_i) &*&
-             malloc_block_lpm_trie_key(key); @*/
-/*@ ensures trie_p(trie, ?n2, max_i) &*& n2 > 0 &*&
-            malloc_block_lpm_trie_key(key); @*/
+/*@ requires trie_p(trie, _, ?max_i) &*& valid_dchain(trie) &*&
+             key_p(key) &*& integer(value, _); @*/
+/*@ ensures trie_p(trie, _, max_i) &*& valid_dchain(trie) &*&
+            key_p(key) &*& integer(value, _); @*/
 {
 	struct lpm_trie_node *node;
 	struct lpm_trie_node *im_node = NULL;
 	struct lpm_trie_node *new_node = NULL;
 	struct lpm_trie_node **slot;
+	struct lpm_trie_node *root;
 	unsigned int next_bit;
 	size_t matchlen = 0;
 	int ret = 0;
 
-	if (!trie || !trie->node_mem_blocks || !trie->dchain ||
-		!key || key->prefixlen > LPM_PLEN_MAX)
-		return -1;
+	int node_id = 0;
 
+	//@ open key_p(key);
+	if (/*!trie || !trie->node_mem_blocks || !trie->dchain ||
+		!key || */key->prefixlen > LPM_PLEN_MAX){
+		//@ close key_p(key);
+		return -1;
+	}
+
+	//@ open trie_p(trie, _, max_i);
 	/* Allocate and fill a new node */
 	if (trie->n_entries == trie->max_entries) {
 		ret = -1;
 		goto out;
 	}
 
+	//@ close trie_p(trie, n, max_i);
 	new_node = lpm_trie_node_alloc(trie, value);
 	if (!new_node) {
 		ret = -1;
 		goto out;
 	}
 
+	//@ open trie_p(trie, n, max_i);
 	trie->n_entries++;
 
+	//@ open node_p(new_node, max_i);
 	new_node->prefixlen = key->prefixlen;
-	new_node->l_child = NULL;
-	new_node->r_child = NULL;
+	//new_node->l_child = NULL;
+	//new_node->r_child = NULL;
 	memcpy(new_node->data, key->data, LPM_DATA_SIZE);
 
 	/* Now find a slot to attach the new node. To do that, walk the tree
@@ -375,29 +385,51 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
 	 * we either find an empty slot or a slot that needs to be replaced by
 	 * an intermediate node.
 	 */
-	slot = &trie->root;
+	//slot = &trie->root;
+	struct lpm_trie_node *node_base = trie->node_mem_blocks;
+	root = node_base + trie->root;
+	slot = &root;
+	node_id = root;
 
-	while ((node = *slot)) {
+	while ((node = *slot))
+	/*@ invariant nodes_p(node_base, node_id, max_i) &*&
+	              node_p(node_base + node_id, max_i) &*&
+	              nodes_p(node_base + node_id+1, max_i - node_id-1, max_i) &*&
+	              node_base + node_id == node; @*/
+	{
 		matchlen = longest_prefix_match(node, key);
 
+		//@ open node_p(node, max_i);
 		if (node->prefixlen != matchlen ||
 		    node->prefixlen == key->prefixlen ||
 		    node->prefixlen == LPM_PLEN_MAX)
+		    	//@ close node_p(node, max);
 			break;
 
 		next_bit = extract_bit(key->data, node->prefixlen);
-		if(next_bit == 0){
-			slot = &(trie->node_mem_blocks + node->l_child);
-		} else {
-			slot = &(trie->node_mem_blocks + node->r_child);
-		}
 		//slot = &node->child[next_bit];
+		if(next_bit == 0){
+			if(!node->has_l_child){
+				node_id = -1;
+				break;
+			}
+			//slot = &(trie->node_mem_blocks + node->l_child);
+			node_id = node->l_child;
+		} else {
+			if(!node->has_r_child){
+				node_id = -1;
+				break;
+			}
+			//slot = &(trie->node_mem_blocks + node->r_child);
+			node_id = node->r_child;
+		}
+		slot = &(node_base + node_id);
 	}
 
 	/* If the slot is empty (a free child pointer or an empty root),
 	 * simply assign the @new_node to that slot and be done.
 	 */
-	if (!node) {
+	if (/*!node*/node_id == -1) {
         *slot = new_node;
 		goto out;
 	}
@@ -408,6 +440,8 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
 	if (node->prefixlen == matchlen) {
 		new_node->l_child = node->l_child;
 		new_node->r_child = node->r_child;
+		new_node->has_l_child = node->has_l_child;
+		new_node->has_r_child = node->has_r_child;
 
 		if (!(node->flags & LPM_TREE_NODE_FLAG_IM))
 			trie->n_entries--;
@@ -426,8 +460,10 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
         //new_node->child[next_bit] = node;
 		if(next_bit == 0){
 			new_node->l_child = node->mem_index;
+			node->has_l_child = 1;
 		} else {
 			new_node->r_child = node->mem_index;
+			node->has_r_child = 1;
 		}
         *slot = new_node;
 		goto out;
@@ -451,6 +487,8 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
         im_node->l_child = new_node->mem_index;
         im_node->r_child = node->mem_index;
 	}
+	im_node->has_l_child = 1;
+	im_node->has_r_child = 1;
 
 	/* Finally, assign the intermediate node to the determined spot */
     *slot = im_node;
