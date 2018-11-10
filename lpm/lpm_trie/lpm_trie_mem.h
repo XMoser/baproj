@@ -12,6 +12,7 @@
 #define LPM_TREE_NODE_FLAG_IM	1
 #define LPM_DATA_SIZE 		4
 #define LPM_PLEN_MAX		32
+#define INVALID_NODE_ID -1
 
 #define min(a, b) ((a<b) ? (a) : (b))
 
@@ -347,11 +348,9 @@ struct lpm_trie_key {
 	}
 @*/
 
-struct lpm_trie_node *lpm_trie_node_alloc(struct lpm_trie *trie, int *value);
+int lpm_trie_node_alloc(struct lpm_trie *trie, int *value);
 /*@ requires trie_p(trie, ?n, ?max_i) &*& valid_dchain(trie); @*/
-/*@ ensures trie_p(trie, n, max_i) &*&
-            result == NULL ? true : node_p(result, max_i) &*&
-            valid_dchain(trie); @*/
+/*@ ensures trie_p(trie, n, max_i) &*& valid_dchain(trie); @*/
 
 struct lpm_trie *lpm_trie_alloc(size_t max_entries);
 /*@ requires max_entries > 0 &*& max_entries <= IRANG_LIMIT; @*/
@@ -376,9 +375,9 @@ int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
 /*@ ensures trie_p(trie, n, max_i) &*& key_p(key); @*/
 
 int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value);
-/*@ requires trie_p(trie, _, ?max_i) &*& valid_dchain(trie) &*& 
+/*@ requires trie_p(trie, _, ?max_i) &*& valid_dchain(trie) &*&
              key_p(key) &*& integer(value, _); @*/
-/*@ ensures trie_p(trie, _, max_i) &*& valid_dchain(trie) &*& 
+/*@ ensures trie_p(trie, _, max_i) &*& valid_dchain(trie) &*&
             key_p(key) &*& integer(value, _); @*/
 
 int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
