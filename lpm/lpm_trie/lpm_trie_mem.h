@@ -115,10 +115,9 @@ struct lpm_trie_key {
 		dchain_high_fp(ch) <= 1 &*&
 		dchain_index_range_fp(ch) == trie->max_entries;
 
-	predicate valid_mem_index(struct lpm_trie *trie, struct lpm_trie_node *node) =
+	predicate valid_mem_index(struct lpm_trie *trie, int i) =
 		trie->dchain |-> ?dchain &*&
 		double_chainp(?ch, dchain) &*&
-		node->mem_index |-> ?i &*&
 		0 <= i &*& i < dchain_index_range_fp(ch);
 @*/
 
