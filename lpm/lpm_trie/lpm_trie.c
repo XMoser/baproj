@@ -586,12 +586,12 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
 			//@ open node_p(new_node, max_i);
 			new_node->r_child = node_mem_index;
 		}
-		
+
         	//*slot = new_node;
 
 		//@ close node_p(new_node, max_i);
 		//@ close_nodes(node_base, new_node_id, max_i);
-		
+
 		if(old_id >= 0 && old_id < max_i) {
 			parent = node_base + old_id;
 			//@ extract_node(node_base, old_id);
@@ -666,7 +666,7 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
 	//@ extract_node(node_base, im_node_id);
 	//@ open node_p(im_node, max_i);
 	if (matchlen >= 0 && LPM_DATA_SIZE > matchlen / 8) {
-		next_bit = extract_bit(key->data, matchlen);		
+		next_bit = extract_bit(key->data, matchlen);
 		if(next_bit) {
 			im_node->l_child = node_mem_index;
 			im_node->r_child = new_node_mem_index;
@@ -726,22 +726,25 @@ out:
 }
 
 int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
-/*@ requires trie_p(trie, ?n, ?max_i) &*& n > 0 &*&
-             malloc_block_lpm_trie_key(key); @*/
-/*@ ensures trie_p(trie, ?n2, max_i) &*&
-            malloc_block_lpm_trie_key(key); @*/
+/*@ requires trie_p(trie, ?n, ?max_i) &*& n > 0 &*& key_p(key) &*&
+             valid_dchain(trie); @*/
+/*@ requires trie_p(trie, _, ?max_i) &*& key_p(key) &*&
+             valid_dchain(trie); @*/
 {
-	struct lpm_trie_node **trim;
-	struct lpm_trie_node **trim2;
 	struct lpm_trie_node *node;
 	struct lpm_trie_node *parent;
+	struct lpm_trie_node *gparent;
 	unsigned int next_bit;
 	size_t matchlen = 0;
 	int ret = 0;
 
-	if (!trie || !trie->node_mem_blocks || !trie->dchain ||
-		!key || key->prefixlen > LPM_PLEN_MAX)
+	int node_id = INVALID_NODE_ID;
+	int parent_id = INVALID_NODE_ID;
+	int gparent_id = INVALID_NODE_ID;
+
+	if (key->prefixlen > LPM_PLEN_MAX) {
 		return -1;
+	}
 
 	/* Walk the tree looking for an exact key/length match and keeping
 	 * track of the path we traverse.  We will need to know the node
@@ -749,28 +752,45 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	 * to delete.  We may also need to know the nodes parent and the
 	 * slot that contains it.
 	 */
-	trim = &trie->root;
-	trim2 = trim;
-	parent = NULL;
-	while ((node = *trim)) {
+
+	struct lpm_trie_node *node_base = trie->node_mem_blocks;
+
+	for (node_id = trie->root; node_id >= 0 && node_id < max_i;) {
+		node = node_base + node_id;
 		matchlen = longest_prefix_match(node, key);
 
 		if (node->prefixlen != matchlen ||
 		    node->prefixlen == key->prefixlen)
 			break;
 
-		parent = node;
-		trim2 = trim;
+		gparent_id = parent_id;
+		parent_id = node_id;
 		next_bit = extract_bit(key->data, node->prefixlen);
+
+		delete_left = 0;
+		delete_right = 0;
+
 		//trim = &node->child[next_bit];
 		if(next_bit == 0){
-			trim = &node->l_child;
+			delete_left = 1;
+			if(!node->has_l_child) {
+				node_id = INVALID_NODE_ID;
+				break;
+			} else {
+				node_id = node->l_child;
+			}
 		} else {
-			trim = &node->r_child;
+			delete_right = 1;
+			if(!node->has_r_child) {
+				node_id = INVALID_NODE_ID;
+				break;
+			} else {
+				node_id = node->r_child;
+			}
 		}
 	}
 
-	if (!node || node->prefixlen != key->prefixlen ||
+	if (node_id == INVALID_NODE_ID || node->prefixlen != key->prefixlen ||
 	    (node->flags & LPM_TREE_NODE_FLAG_IM)) {
 		ret = -1;
 		goto out;
@@ -781,7 +801,7 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	/* If the node we are removing has two children, simply mark it
 	 * as intermediate and we are done.
 	 */
-	if (node->l_child && node->r_child) {
+	if (node->has_l_child && node->has_r_child) {
 		node->flags |= LPM_TREE_NODE_FLAG_IM;
 		goto out;
 	}
@@ -793,27 +813,50 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	 * intermediate nodes have exactly 2 children and that there are no
 	 * unnecessary intermediate nodes in the tree.
 	 */
-	if (parent && (parent->flags & LPM_TREE_NODE_FLAG_IM) &&
-	    !node->l_child && !node->r_child) {
-		if (node == parent->l_child)
-            *trim2 = parent->r_child;
-		else
-            *trim2 = parent->l_child;
-        node_free(parent, trie);
-        node_free(node, trie);
-		goto out;
+	if(parent_id != INVALID_NODE_ID) {
+		parent = node_base + parent_id;
+		if ((parent->flags & LPM_TREE_NODE_FLAG_IM) &&
+		    !node->has_l_child && !node->has_r_child) {
+			if(gparent_id != INVALID_NODE_ID) {
+				gparent = node_base + node_id;
+				if (delete_left) {
+					gparent->r_child = parent->r_child;
+				} else {
+					gparent->l_child = parent->l_child;
+				}
+			}
+			node_free(parent, trie);
+			node_free(node, trie);
+			goto out;
+		}
 	}
 
 	/* The node we are removing has either zero or one child. If there
 	 * is a child, move it into the removed node's slot then delete
 	 * the node.  Otherwise just clear the slot and delete the node.
 	 */
-	if (node->l_child)
-        *trim = node->l_child;
-	else if (node->r_child)
-        *trim = node->r_child;
-	else
-        *trim = NULL;
+	if(parent_id != INVALID_NODE_ID) {
+		parent = node_base + parent_id;
+		if(node->has_l_child) {
+			parent->l_child = node->l_child;
+		} else if(node->has_r_child) {
+			parent->r_child = node->r_child;
+		} else {
+			if(delete_left) {
+				parent->has_l_child = 0;
+			} else if(delete_right) {
+				parent->has_r_child = 0;
+			}
+		}
+	} else {
+		//We are deleting the root
+		if(node->has_l_child) {
+			trie->root = node->l_child;
+		} else if(node->has_r_child) {
+			trie->root = node->r_child;
+		}
+	}
+    //*trim = NULL;
     node_free(node, trie);
 
 out:
