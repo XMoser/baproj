@@ -742,7 +742,9 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	int parent_id = INVALID_NODE_ID;
 	int gparent_id = INVALID_NODE_ID;
 
+	//@ open key_p(key);
 	if (key->prefixlen > LPM_PLEN_MAX) {
+		//@ close key_p(key);
 		return -1;
 	}
 
@@ -753,19 +755,35 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	 * slot that contains it.
 	 */
 
+	//@ open trie_p(trie, _, max_i);
 	struct lpm_trie_node *node_base = trie->node_mem_blocks;
 
-	for (node_id = trie->root; node_id >= 0 && node_id < max_i;) {
+	//@ close key_p(key);
+	for (node_id = trie->root; node_id >= 0 && node_id < max_i;)
+	/*@ invariant key_p(key) &*& node_id >= 0 && node_id < max_i &*&
+	       	      nodes_p(node_base, node_id, max_i) &*&
+				  node_p(node_base + node_id, max_i) &*&
+				  nodes_p(node_base + node_id+1, max_i - node_id-1, max_i)@*/
+	{
 		node = node_base + node_id;
+
 		matchlen = longest_prefix_match(node, key);
 
+		//@ open node_p(node, max_i);
+		//@ open key_p(key);
 		if (node->prefixlen != matchlen ||
-		    node->prefixlen == key->prefixlen)
+		    node->prefixlen == key->prefixlen) {
+			//@ close node_p(node, max_i);
+			//@ close key_p(key);
 			break;
+		}
 
 		gparent_id = parent_id;
 		parent_id = node_id;
-		next_bit = extract_bit(key->data, node->prefixlen);
+
+		if(node->prefixlen >= 0 && LPM_DATA_SIZE > node->prefixlen / 8) {
+			next_bit = extract_bit(key->data, node->prefixlen);
+		}
 
 		delete_left = 0;
 		delete_right = 0;
@@ -775,24 +793,38 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 			delete_left = 1;
 			if(!node->has_l_child) {
 				node_id = INVALID_NODE_ID;
+				//@ close node_p(node, max_i);
+				//@ close key_p(key);
 				break;
 			} else {
+				//@ close node_p(node, max_i);
+				//@ close_nodes(node_base, node_id, max_i);
 				node_id = node->l_child;
+				//@ extract_node(node_base, node_id);
 			}
 		} else {
 			delete_right = 1;
 			if(!node->has_r_child) {
 				node_id = INVALID_NODE_ID;
+				//@ close node_p(node, max_i);
+				//@ close key_p(key);
 				break;
 			} else {
+				//@ close node_p(node, max_i);
+				//@ close_nodes(node_base, node_id, max_i);
 				node_id = node->r_child;
+				//@ extract_node(node_base, node_id);
 			}
 		}
 	}
 
+	//@ open node_p(node, max_i);
+	//@ open key_p(key);
 	if (node_id == INVALID_NODE_ID || node->prefixlen != key->prefixlen ||
 	    (node->flags & LPM_TREE_NODE_FLAG_IM)) {
 		ret = -1;
+		//@ close node_p(node, max_i);
+		//@ close key_p(key);
 		goto out;
 	}
 
@@ -803,6 +835,8 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	 */
 	if (node->has_l_child && node->has_r_child) {
 		node->flags |= LPM_TREE_NODE_FLAG_IM;
+		//@ close node_p(node, max_i);
+		//@ close key_p(key);
 		goto out;
 	}
 
@@ -815,23 +849,37 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	 */
 	if(parent_id != INVALID_NODE_ID) {
 		parent = node_base + parent_id;
+		int node_has_l_child = node->has_l_child;
+		int node_has_r_child = node->has_r_child;
+		//@ close node_p(node, max_i);
+		//@ close_nodes(node_base, node_id, max_i);
+		//@ extract_node(node_base, parent_id);
+		//@ open node_p(parent, max_i);
 		if ((parent->flags & LPM_TREE_NODE_FLAG_IM) &&
-		    !node->has_l_child && !node->has_r_child) {
+		    !node_has_l_child && !node_has_r_child) {
 			if(gparent_id != INVALID_NODE_ID) {
 				gparent = node_base + node_id;
+				int parent_l_child = parent->l_child;
+				int parent_r_child = parent->r_child;
+				//@ close node_p(parent, max_i);
+				//@ close_nodes(node_base, parent_id, max_i);
+				//@ extract_node(node_base, gparent_id);
+				//@ open node_p(gparent, max_i);
 				if(parent_id == gparent->l_child) {
 					if (delete_left) {
-						gparent->l_child = parent->r_child;
+						gparent->l_child = parent_r_child;
 					} else if(delete_right) {
-						gparent->l_child = parent->l_child;
+						gparent->l_child = parent_l_child;
 					}
 				} else if(parent_id == gparent->r_child) {
 					if(delete_left) {
-						gparent->r_child = parent->r_child;
+						gparent->r_child = parent_r_child;
 					} else if(delete_right) {
-						gparent->r_child = parent->r_child;
+						gparent->r_child = parent_r_child;
 					}
 				}
+				//@ close node_p(gparent, max_i);
+				//@ close_nodes(node_base, gparent_id, max_i);
 			}
 			node_free(parent, trie);
 			node_free(node, trie);
@@ -845,17 +893,24 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	 */
 	if(parent_id != INVALID_NODE_ID) {
 		parent = node_base + parent_id;
-		if(node->has_l_child) {
+		int node_has_l_child = node->has_l_child;
+		int node_has_r_child = node->has_r_child;
+		int node_l_child = node->l_child;
+		int node_r_child = node->r_child;
+		//@ close node_p(node, max_i);
+		//@ close_nodes(node_base, node_id, max_i);
+		//@ extract_node(node_base, parent_id, max_i);
+		if(node_has_l_child) {
 			if(delete_right){
-				parent->r_child = node->l_child;
+				parent->r_child = node_l_child;
 			} else if(delete_left) {
-				parent->l_child = node->l_child;
+				parent->l_child = node_l_child;
 			}
-		} else if(node->has_r_child) {
+		} else if(node_has_r_child) {
 			if(delete_right) {
-				parent->r_child = node->r_child;
+				parent->r_child = node_r_child;
 			} else if(delete_left) {
-				parent->l_child = node->r_child;
+				parent->l_child = node_r_child;
 			}
 		} else {
 			if(delete_left) {
@@ -864,6 +919,8 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 				parent->has_r_child = 0;
 			}
 		}
+		//@ close node_p(parent, max_i);
+		//@ close_nodes(node_base, parent_id, max_i);
 	} else {
 		//We are deleting the root
 		if(node->has_l_child) {
@@ -871,6 +928,8 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 		} else if(node->has_r_child) {
 			trie->root = node->r_child;
 		}
+		//@ close node_p(node, max_i);
+		//@ close_nodes(node_base, node_id, max_i);
 	}
     //*trim = NULL;
     node_free(node, trie);
