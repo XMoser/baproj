@@ -819,10 +819,18 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 		    !node->has_l_child && !node->has_r_child) {
 			if(gparent_id != INVALID_NODE_ID) {
 				gparent = node_base + node_id;
-				if (delete_left) {
-					gparent->r_child = parent->r_child;
-				} else {
-					gparent->l_child = parent->l_child;
+				if(parent_id == gparent->l_child) {
+					if (delete_left) {
+						gparent->l_child = parent->r_child;
+					} else if(delete_right) {
+						gparent->l_child = parent->l_child;
+					}
+				} else if(parent_id == gparent->r_child) {
+					if(delete_left) {
+						gparent->r_child = parent->r_child;
+					} else if(delete_right) {
+						gparent->r_child = parent->r_child;
+					}
 				}
 			}
 			node_free(parent, trie);
@@ -838,9 +846,17 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	if(parent_id != INVALID_NODE_ID) {
 		parent = node_base + parent_id;
 		if(node->has_l_child) {
-			parent->l_child = node->l_child;
+			if(delete_right){
+				parent->r_child = node->l_child;
+			} else if(delete_left) {
+				parent->l_child = node->l_child;
+			}
 		} else if(node->has_r_child) {
-			parent->r_child = node->r_child;
+			if(delete_right) {
+				parent->r_child = node->r_child;
+			} else if(delete_left) {
+				parent->l_child = node->r_child;
+			}
 		} else {
 			if(delete_left) {
 				parent->has_l_child = 0;
