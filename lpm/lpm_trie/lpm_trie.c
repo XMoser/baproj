@@ -728,19 +728,22 @@ out:
 int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 /*@ requires trie_p(trie, ?n, ?max_i) &*& n > 0 &*& key_p(key) &*&
              valid_dchain(trie); @*/
-/*@ requires trie_p(trie, _, ?max_i) &*& key_p(key) &*&
+/*@ ensures trie_p(trie, _, max_i) &*& key_p(key) &*&
              valid_dchain(trie); @*/
 {
 	struct lpm_trie_node *node;
 	struct lpm_trie_node *parent;
 	struct lpm_trie_node *gparent;
-	unsigned int next_bit;
+	bool next_bit;
 	size_t matchlen = 0;
 	int ret = 0;
 
 	int node_id = INVALID_NODE_ID;
 	int parent_id = INVALID_NODE_ID;
 	int gparent_id = INVALID_NODE_ID;
+	
+	int delete_left = 0;
+	int delete_right = 0;
 
 	//@ open key_p(key);
 	if (key->prefixlen > LPM_PLEN_MAX) {
@@ -757,13 +760,15 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 
 	//@ open trie_p(trie, _, max_i);
 	struct lpm_trie_node *node_base = trie->node_mem_blocks;
+	int root_id = trie->root;
+	//@ extract_node(node_base, root_id);
 
 	//@ close key_p(key);
 	for (node_id = trie->root; node_id >= 0 && node_id < max_i;)
 	/*@ invariant key_p(key) &*& node_id >= 0 && node_id < max_i &*&
 	       	      nodes_p(node_base, node_id, max_i) &*&
-				  node_p(node_base + node_id, max_i) &*&
-				  nodes_p(node_base + node_id+1, max_i - node_id-1, max_i)@*/
+	              node_p(node_base + node_id, max_i) &*&
+	              nodes_p(node_base + node_id+1, max_i - node_id-1, max_i); @*/
 	{
 		node = node_base + node_id;
 
@@ -789,7 +794,7 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 		delete_right = 0;
 
 		//trim = &node->child[next_bit];
-		if(next_bit == 0){
+		if(!next_bit){
 			delete_left = 1;
 			if(!node->has_l_child) {
 				node_id = INVALID_NODE_ID;
@@ -797,9 +802,10 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 				//@ close key_p(key);
 				break;
 			} else {
-				//@ close node_p(node, max_i);
-				//@ close_nodes(node_base, node_id, max_i);
 				node_id = node->l_child;
+				//@ close key_p(key);
+				//@ close node_p(node, max_i);
+				//@ close_nodes(node_base, parent_id, max_i);
 				//@ extract_node(node_base, node_id);
 			}
 		} else {
@@ -810,20 +816,30 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 				//@ close key_p(key);
 				break;
 			} else {
-				//@ close node_p(node, max_i);
-				//@ close_nodes(node_base, node_id, max_i);
 				node_id = node->r_child;
+				//@ close key_p(key);
+				//@ close node_p(node, max_i);
+				//@ close_nodes(node_base, parent_id, max_i);
 				//@ extract_node(node_base, node_id);
 			}
 		}
 	}
 
+	if(node_id == INVALID_NODE_ID) {
+		//@ close_nodes(node_base, parent_id, max_i);
+		//@ close trie_p(trie, _, max_i);
+		ret = -1;
+		goto out;
+	}
+
 	//@ open node_p(node, max_i);
 	//@ open key_p(key);
-	if (node_id == INVALID_NODE_ID || node->prefixlen != key->prefixlen ||
+	if (node->prefixlen != key->prefixlen ||
 	    (node->flags & LPM_TREE_NODE_FLAG_IM)) {
 		ret = -1;
 		//@ close node_p(node, max_i);
+		//@ close_nodes(node_base, node_id, max_i);
+		//@ close trie_p(trie, _, max_i);
 		//@ close key_p(key);
 		goto out;
 	}
@@ -836,6 +852,8 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	if (node->has_l_child && node->has_r_child) {
 		node->flags |= LPM_TREE_NODE_FLAG_IM;
 		//@ close node_p(node, max_i);
+		//@ close_nodes(node_base, node_id, max_i);
+		//@ close trie_p(trie, _, max_i);
 		//@ close key_p(key);
 		goto out;
 	}
@@ -847,7 +865,7 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	 * intermediate nodes have exactly 2 children and that there are no
 	 * unnecessary intermediate nodes in the tree.
 	 */
-	if(parent_id != INVALID_NODE_ID) {
+	if(parent_id != INVALID_NODE_ID && parent_id >= 0 && parent_id < max_i) {
 		parent = node_base + parent_id;
 		int node_has_l_child = node->has_l_child;
 		int node_has_r_child = node->has_r_child;
@@ -857,8 +875,9 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 		//@ open node_p(parent, max_i);
 		if ((parent->flags & LPM_TREE_NODE_FLAG_IM) &&
 		    !node_has_l_child && !node_has_r_child) {
-			if(gparent_id != INVALID_NODE_ID) {
-				gparent = node_base + node_id;
+			if(gparent_id != INVALID_NODE_ID &&
+			   gparent_id >= 0 && gparent_id < max_i) {
+				gparent = node_base + gparent_id;
 				int parent_l_child = parent->l_child;
 				int parent_r_child = parent->r_child;
 				//@ close node_p(parent, max_i);
@@ -881,25 +900,30 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 				//@ close node_p(gparent, max_i);
 				//@ close_nodes(node_base, gparent_id, max_i);
 			}
+			//@ open valid_dchain(trie);
+			//@ close valid_mem_index(trie, parent_id);
+			//@ close trie_p(trie, _, max_i);
 			node_free(parent, trie);
+			//@ close valid_mem_index(trie, node_id);
 			node_free(node, trie);
+			//@ close valid_dchain(trie);
 			goto out;
 		}
-	}
 
 	/* The node we are removing has either zero or one child. If there
 	 * is a child, move it into the removed node's slot then delete
 	 * the node.  Otherwise just clear the slot and delete the node.
 	 */
-	if(parent_id != INVALID_NODE_ID) {
-		parent = node_base + parent_id;
-		int node_has_l_child = node->has_l_child;
-		int node_has_r_child = node->has_r_child;
+	 	//@ close node_p(parent, max_i);
+		//@ close_nodes(node_base, parent_id, max_i);
+		//@ extract_node(node_base, node_id);
+		//@ open node_p(node, max_i);
 		int node_l_child = node->l_child;
 		int node_r_child = node->r_child;
 		//@ close node_p(node, max_i);
 		//@ close_nodes(node_base, node_id, max_i);
-		//@ extract_node(node_base, parent_id, max_i);
+		//@ extract_node(node_base, parent_id);
+		//@ open node_p(parent, max_i);
 		if(node_has_l_child) {
 			if(delete_right){
 				parent->r_child = node_l_child;
@@ -932,7 +956,11 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 		//@ close_nodes(node_base, node_id, max_i);
 	}
     //*trim = NULL;
+	//@ open valid_dchain(trie);
+	//@ close valid_mem_index(trie, node_id);
+	//@ close trie_p(trie, _, max_i);
     node_free(node, trie);
+	//@ close valid_dchain(trie);
 
 out:
 	return ret;

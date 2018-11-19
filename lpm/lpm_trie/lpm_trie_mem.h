@@ -380,10 +380,10 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
             key_p(key) &*& integer(value, _); @*/
 
 int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
-/*@ requires trie_p(trie, ?n, ?max_i) &*& n > 0 &*&
-             malloc_block_lpm_trie_key(key); @*/
-/*@ ensures trie_p(trie, ?n2, max_i) &*&
-            malloc_block_lpm_trie_key(key); @*/
+/*@ requires trie_p(trie, ?n, ?max_i) &*& n > 0 &*& key_p(key) &*&
+             valid_dchain(trie); @*/
+/*@ ensures trie_p(trie, _, max_i) &*& key_p(key) &*&
+             valid_dchain(trie); @*/
 
 /**
  * fls - find last (most-significant) bit set
