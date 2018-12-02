@@ -45,6 +45,41 @@ struct lpm_trie_key {
 };
 
 /*@
+	inductive node_t = node(node_t, list<int>, option<int>, node_t) | empty;
+	inductive trie_t = trie(node_t, int, int);
+
+	predicate trie_p_2(struct lpm_trie *trie, trie_t t) =
+		switch(t) { case trie(tr, tn, tm):
+			return
+				malloc_block_lpm_trie(trie) &*&
+				trie->root |-> ?r &*&
+				trie->n_entries |-> ?n &*&
+				n >= 0 &*&
+				n == tn &*&
+				trie->max_entries |-> ?max &*&
+				max > 0 &*&
+				max == tm &*&
+				switch(tr) {
+					case empty: return n == 0;
+					case node(r_lc, rp, rv, r_rc):
+						return r >= 0 &*& r < max &*& n > 0;
+				} &*&
+				trie->dchain |-> ?dchain &*&
+				double_chainp(?ch, dchain) &*&
+				dchain_index_range_fp(ch) == max &*&
+				dchain_high_fp(ch) <= 1 &*&
+				trie->node_mem_blocks |-> ?mem_blocks &*&
+				malloc_block_chars((void*)mem_blocks,
+								   (sizeof(struct lpm_trie_node) * max)) &*&
+				nodes_p(mem_blocks, max, max);
+		};
+
+	fixpoint trie_t empty_trie(int max) {
+		return trie(empty, 0, max);
+	}
+@*/
+
+/*@
 	predicate trie_p(struct lpm_trie *trie, int n, int max) =
 		malloc_block_lpm_trie(trie) &*&
 		trie->root |-> ?r &*&
@@ -131,18 +166,6 @@ struct lpm_trie_key {
 @*/
 
 /*@
-	lemma void dchain_allocate_range_time(struct DoubleChain *dchain, int max, int ni);
-	requires double_chainp(?ch, dchain) &*&
-	         dchain_index_range_fp(ch) == max &*&
-	         dchain_high_fp(ch) <= 1;
-	ensures double_chainp(dchain_allocate_fp(ch, ni, 1), dchain) &*&
-	        dchain_index_range_fp(dchain_allocate_fp(ch, ni, 1)) == max &*&
-	        dchain_high_fp(dchain_allocate_fp(ch, ni, 1)) <= 1;
-
-	fixpoint bool char_equals(int i, char c){
-		return i == c;
-	}
-
 	lemma void bytes_to_node_im(void* node)
 	requires chars((void*)node, sizeof(struct lpm_trie_node), ?chs);
 	ensures node_im_p(node);
@@ -323,7 +346,7 @@ int lpm_trie_node_alloc(struct lpm_trie *trie, int *value);
 
 struct lpm_trie *lpm_trie_alloc(size_t max_entries);
 /*@ requires max_entries > 0 &*& max_entries <= IRANG_LIMIT; @*/
-/*@ ensures result == NULL ? true : trie_p(result, 0, max_entries); @*/
+/*@ ensures result == NULL ? true : trie_p_2(result, empty_trie(max_entries)); @*/
 
 void trie_free(struct lpm_trie *trie);
 /*@ requires trie_p(trie, _, _); @*/

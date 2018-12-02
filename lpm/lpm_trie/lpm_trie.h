@@ -65,6 +65,10 @@ struct lpm_trie_key {
 		}
 	}
 
+	fixpoint lpm_trie empty_trie(int max){
+		return trie(empty, 0, max);
+	}
+
 	fixpoint int match_length(lpm_node node, list<int> p){
 		switch(node) {
 			case empty: return 0;

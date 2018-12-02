@@ -15,7 +15,7 @@ void init_nodes_mem(const void *node_mem_blocks, size_t max_entries)
 /*@ ensures nodes_p(node_mem_blocks, max_entries, max_entries); @*/
 {
 	struct lpm_trie_node *cur;
-	for(int i = 0; i < (int) max_entries; i++)
+	for(size_t i = 0; i < max_entries; i++)
 	/*@ invariant (i < max_entries ? i >= 0 : i == max_entries) &*&
 	              (i == 0 ? true :
 	               nodes_p(node_mem_blocks + (max_entries-i)*sizeof(struct lpm_trie_node), i, max_entries)) &*&
@@ -25,7 +25,7 @@ void init_nodes_mem(const void *node_mem_blocks, size_t max_entries)
 		    	close nodes_p(node_mem_blocks + max_entries * sizeof(struct lpm_trie_node), ((i+1)-1),
 		    	              max_entries);
 		    }@*/
-		cur = (struct lpm_trie_node*) node_mem_blocks + (int) max_entries-1-i;
+		cur = (struct lpm_trie_node*) node_mem_blocks + (int) (max_entries-1-i);
 		//@ extract_im_node(node_mem_blocks, max_entries-1-i);
 		/*@ open nodes_im_p(node_mem_blocks + ((max_entries-1-i)+1) * sizeof(struct lpm_trie_node),
 		                    (max_entries-i) - (max_entries-1-i) - 1);@*/
@@ -43,7 +43,7 @@ void init_nodes_mem(const void *node_mem_blocks, size_t max_entries)
 
 struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 /*@ requires max_entries > 0 &*& max_entries <= IRANG_LIMIT; @*/
-/*@ ensures result == NULL ? true : trie_p(result, 0, max_entries); @*/
+/*@ ensures result == NULL ? true : trie_p_2(result, empty_trie(max_entries)); @*/
 {
 	if(max_entries == 0 ||
 	   max_entries > SIZE_MAX / sizeof(struct lpm_trie_node))
@@ -70,7 +70,7 @@ struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 		return NULL;
 	}
 
-	//trie->root = NULL;
+	trie->root = INVALID_NODE_ID;
 	trie->n_entries = 0;
 	trie->max_entries = max_entries;
 	trie->node_mem_blocks = node_mem_blocks;
@@ -80,12 +80,11 @@ struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 	//@ assert dchain_index_range_fp(ch) == max;
 	//@ assert dchain_high_fp(ch) == 0;
 
-	//TODO: Initialize pre-allocated nodes, produce assertions for bytes_to_nodes
 	//@ bytes_to_nodes_im(node_mem_blocks, nat_of_int(max_entries));
 	//@ assert nodes_im_p(node_mem_blocks, max_entries);
 	init_nodes_mem(node_mem_blocks, max_entries);
 
-	//@ close trie_p(trie, 0, max_entries);
+	//@ close trie_p_2(trie, empty_trie(max_entries));
 
 	return trie;
 }
@@ -241,8 +240,6 @@ int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	int found_id = INVALID_NODE_ID;
 	int node_id;
 	int old_id;
-	//if(!key)
-		//return NULL;
 
 	/* Start walking the trie from the root node ... */
 
@@ -308,7 +305,6 @@ int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 		next_bit = extract_bit(key->data, node->prefixlen);
 		//@ close key_p(key);
 		if(!next_bit){
-			//node = node->l_child;
 			if(!node->has_l_child){
 				//@ close node_p(node, max_i);
 				break;
@@ -371,8 +367,7 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
 	int insert_right = 0;
 
 	//@ open key_p(key);
-	if (/*!trie || !trie->node_mem_blocks || !trie->dchain ||
-		!key || */key->prefixlen > LPM_PLEN_MAX){
+	if (key->prefixlen > LPM_PLEN_MAX){
 		//@ close key_p(key);
 		return -1;
 	}
@@ -400,8 +395,6 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
 	//@ extract_node(node_base, new_node_id);
 	//@ open node_p(new_node, max_i);
 	new_node->prefixlen = key->prefixlen;
-	//new_node->l_child = NULL;
-	//new_node->r_child = NULL;
 	memcpy(new_node->data, key->data, LPM_DATA_SIZE);
 	//@ close node_p(new_node, max_i);
 
@@ -423,9 +416,6 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
 	 * we either find an empty slot or a slot that needs to be replaced by
 	 * an intermediate node.
 	 */
-	//slot = &trie->root;
-	//root = node_base + trie->root;
-	//slot = &root;
 	node_id = trie->root;
 
 	//@ extract_node(node_base, node_id);
@@ -456,7 +446,6 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
 		}
 		insert_left = 0;
 		insert_right = 0;
-		//slot = &node->child[next_bit];
 		if(!next_bit){
 			insert_left = 1;
 			if(!node->has_l_child){
@@ -466,7 +455,6 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
 				//@ close node_p(node, max_i);
 				break;
 			}
-			//slot = &(trie->node_mem_blocks + node->l_child);
 			old_id = node_id;
 			node_id = node->l_child;
 			//@ close key_p(key);
@@ -483,7 +471,6 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
 				//@ close node_p(node, max_i);
 				break;
 			}
-			//slot = &(trie->node_mem_blocks + node->r_child);
 			old_id = node_id;
 			node_id = node->r_child;
 			//@ close key_p(key);
@@ -508,7 +495,6 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
 	 * simply assign the @new_node to that slot and be done.
 	 */
 	if (/*!node*/node_id == INVALID_NODE_ID) {
-		//*slot = new_node;
 		parent = node_base + old_id;
 		//@ open node_p(parent, max_i);
 		if(insert_left) {
@@ -554,7 +540,6 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
 		//@ close node_p(node, max_i);
 		//@ close_nodes(node_base, node_id, max_i);
 
-		//*slot = new_node;
 		if(old_id >= 0 && old_id < max_int) {
 			//@ extract_node(node_base, old_id);
 			parent = node_base + old_id;
@@ -570,7 +555,6 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
 			//@ close_nodes(node_base, old_id, max_i);
 		}
 
-		//TODO: change contract for node_free.
 		//@ close trie_p(trie, _, max_i);
 		//@ assert node_id >= 0 &*& node_id < max_i;
 		res = node_free(node_id, trie);
@@ -589,7 +573,6 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
 	 */
 	if (matchlen == key->prefixlen && LPM_DATA_SIZE > matchlen / 8) {
 		next_bit = extract_bit(node->data, matchlen);
-        	//new_node->child[next_bit] = node;
 		if(!next_bit){
 			int node_mem_index = node->mem_index;
 			node->has_l_child = 1;
@@ -609,8 +592,6 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
 			//@ open node_p(new_node, max_i);
 			new_node->r_child = node_mem_index;
 		}
-
-        	//*slot = new_node;
 
 		//@ close node_p(new_node, max_i);
 		//@ close_nodes(node_base, new_node_id, max_i);
@@ -705,7 +686,6 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value
 	//@ close_nodes(node_base, im_node_id, max_i);
 
 	/* Finally, assign the intermediate node to the determined spot */
-    //*slot = im_node;
     	if(old_id >= 0 && old_id < max_int) {
 		parent = node_base + old_id;
 		//@ extract_node(node_base, old_id);
@@ -727,7 +707,6 @@ out:
 	//@ assert key_p(key);
 	if (ret) {
 		if (new_node_id != INVALID_NODE_ID) {
-			//TODO: change the contract for node_free
 			//@ open trie_p(trie, _, max_i);
 			if(trie->n_entries > 0) {
 				trie->n_entries--;
@@ -817,7 +796,6 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 		delete_left = 0;
 		delete_right = 0;
 
-		//trim = &node->child[next_bit];
 		if(!next_bit){
 			delete_left = 1;
 			if(!node->has_l_child) {
@@ -992,7 +970,6 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 		//@ close node_p(node, max_i);
 		//@ close_nodes(node_base, node_id, max_i);
 	}
-    //*trim = NULL;
 	//@ close trie_p(trie, _, max_i);
 	//@ close key_p(key);
 	//@ assert node_id >= 0 &*& node_id < max_i;
