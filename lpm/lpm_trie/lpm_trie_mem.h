@@ -1,8 +1,9 @@
-#include "../../../vignat/nf/lib/containers/double-chain.h"
+#include "lib/double-chain.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 //@ #include "list.gh"
 //@ #include "arith.gh"
@@ -54,6 +55,8 @@ struct lpm_trie_key {
 		max > 0 &*&
 		trie->dchain |-> ?dchain &*&
 		double_chainp(?ch, dchain) &*&
+		dchain_index_range_fp(ch) == max &*&
+		dchain_high_fp(ch) <= 1 &*&
 		trie->node_mem_blocks |-> ?mem_blocks &*&
 		malloc_block_chars((void*)mem_blocks,
 		                   (sizeof(struct lpm_trie_node) * max)) &*&
@@ -100,25 +103,6 @@ struct lpm_trie_key {
 			true
 		:
 			node_p(node, max_i) &*& nodes_p(node+1, count-1, max_i);
-
-	predicate valid_ptrs(uintptr_t *ptr_stack, void *mem_blocks, int i) =
-		i == 0 ?
-			true
-		:
-			ptr_stack + i*sizeof(uintptr_t) ==
-			mem_blocks + i*sizeof(struct lpm_trie_node) &*&
-			valid_ptrs(ptr_stack, mem_blocks, i-1);
-
-	predicate valid_dchain(struct lpm_trie *trie) =
-		trie->dchain |-> ?dchain &*&
-		double_chainp(?ch, dchain) &*&
-		dchain_high_fp(ch) <= 1 &*&
-		dchain_index_range_fp(ch) == trie->max_entries;
-
-	predicate valid_mem_index(struct lpm_trie *trie, int i) =
-		trie->dchain |-> ?dchain &*&
-		double_chainp(?ch, dchain) &*&
-		0 <= i &*& i < dchain_index_range_fp(ch);
 @*/
 
 /*@
@@ -312,20 +296,6 @@ struct lpm_trie_key {
 		close nodes_im_p(node, i);
 	}
 
-	lemma void extract_node_ptr(struct lpm_trie_node *first, struct lpm_trie_node *node)
-	requires nodes_p(first, ?size, ?max_i) &*&
-	         ((void*)node - (void*)first) / sizeof(struct lpm_trie_node) >= 0 &*&
-	         ((void*)node - (void*)first) / sizeof(struct lpm_trie_node) < size &*&
-	         ((void*)node - (void*)first) % sizeof(struct lpm_trie_node) == 0;
-  	ensures nodes_p(first, ((void*)node - (void*)first) / sizeof(struct lpm_trie_node), max_i) &*&
-	        node_p(node, max_i) &*&
-	        nodes_p(first + ((void*)node - (void*)first) / sizeof(struct lpm_trie_node) + 1,
-	                size - ((void*)node - (void*)first) / sizeof(struct lpm_trie_node) -1, max_i);
-	{
-		div_rem((void*)node - (void*)first, sizeof(struct lpm_trie_node));
-		extract_node(first, ((void*)node - (void*)first) / sizeof(struct lpm_trie_node));
-	}
-
 	lemma void nodes_join(struct lpm_trie_node *node);
 	requires nodes_p(node, ?n, ?max_i) &*& nodes_p(node+n, ?n0, max_i);
 	ensures nodes_p(node, n+n0, max_i);
@@ -348,8 +318,8 @@ struct lpm_trie_key {
 @*/
 
 int lpm_trie_node_alloc(struct lpm_trie *trie, int *value);
-/*@ requires trie_p(trie, ?n, ?max_i) &*& valid_dchain(trie); @*/
-/*@ ensures trie_p(trie, n, max_i) &*& valid_dchain(trie); @*/
+/*@ requires trie_p(trie, ?n, ?max_i); @*/
+/*@ ensures trie_p(trie, n, max_i); @*/
 
 struct lpm_trie *lpm_trie_alloc(size_t max_entries);
 /*@ requires max_entries > 0 &*& max_entries <= IRANG_LIMIT; @*/
@@ -374,16 +344,14 @@ int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
 /*@ ensures trie_p(trie, n, max_i) &*& key_p(key); @*/
 
 int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value);
-/*@ requires trie_p(trie, _, ?max_i) &*& valid_dchain(trie) &*&
+/*@ requires trie_p(trie, _, ?max_i) &*&
              key_p(key) &*& integer(value, _); @*/
-/*@ ensures trie_p(trie, _, max_i) &*& valid_dchain(trie) &*&
+/*@ ensures trie_p(trie, _, max_i) &*&
             key_p(key) &*& integer(value, _); @*/
 
 int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
-/*@ requires trie_p(trie, ?n, ?max_i) &*& n > 0 &*& key_p(key) &*&
-             valid_dchain(trie); @*/
-/*@ ensures trie_p(trie, _, max_i) &*& key_p(key) &*&
-             valid_dchain(trie); @*/
+/*@ requires trie_p(trie, ?n, ?max_i) &*& n > 0 &*& key_p(key); @*/
+/*@ ensures trie_p(trie, _, max_i) &*& key_p(key); @*/
 
 /**
  * fls - find last (most-significant) bit set
@@ -396,6 +364,7 @@ static int fls(unsigned int x)
 /*@ requires true; @*/
 /*@ ensures true; @*/
 {
+//@ assume(false);
 	int r = 32;
 
 	if (!x)

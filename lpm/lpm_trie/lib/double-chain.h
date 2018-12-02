@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#include "lib/nf_time.h"
+#include "nf_time.h"
 
 //@ #include <listex.gh>
 //@ #include "stdex.gh"
