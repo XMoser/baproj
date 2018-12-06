@@ -111,10 +111,13 @@ int lpm_trie_node_alloc(struct lpm_trie *trie, int *value)
 	//@ extract_node(trie->node_mem_blocks, index);
 	//@ open node_p(node, max_i);
 
-	node->flags = 0;
+	if(value == NULL) {
+		//This allows to allocate intermediary nodes by giving a NULL value
+		node->flags = 1;
+	} else {
+		node->flags = 0;
+	}
 	node->value = value;
-	//node->l_child = NULL;
-	//node->r_child = NULL;
 	node->mem_index = index;
 
 	//@ close node_p(node, max_i);
