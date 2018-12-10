@@ -9,12 +9,13 @@
 
 //@ #include "arith.gh"
 //@ #include <nat.gh>
+//@ #include "lib/listexex.gh"
 
 int init_nodes_mem(const void *node_mem_blocks, size_t max_entries)
 /*@ requires max_entries > 0 &*& nodes_im_p(node_mem_blocks, max_entries);@*/
 /*@ ensures result == 0 ?
 	nodes_p_2(node_mem_blocks, max_entries, max_entries, ?ns) &*&
-    	all_eq(ns, unalloced_node()) == true
+    	all_eq(ns, unalloced_node()) == true &*& length(ns) == max_entries
     :
 	nodes_im_p(node_mem_blocks, max_entries); @*/
 {
@@ -27,16 +28,20 @@ int init_nodes_mem(const void *node_mem_blocks, size_t max_entries)
 	//@ assert all_eq(cls, 0) == true;
 
 	for(size_t i = 0; i < max_entries; i++)
-	/*@ invariant (i < max_entries ? i >= 0 : i == max_entries) &*& chars((void*) empty_data, LPM_DATA_SIZE, cls) &*& all_eq(cls, 0) == true &*&
+	/*@ invariant (i < max_entries ? i >= 0 : i == max_entries) &*&
+	              chars((void*) empty_data, LPM_DATA_SIZE, cls) &*&
+	              all_eq(cls, 0) == true &*&
 	              (i == 0 ? true :
-	               nodes_p_2(node_mem_blocks + (max_entries-i)*sizeof(struct lpm_trie_node), i, max_entries, ?n1s) &*& all_eq(n1s, unalloced_node()) == true) &*&
-	              nodes_im_p(node_mem_blocks, max_entries - i);@*/
+	              	nodes_p_2(node_mem_blocks + (max_entries-i)*sizeof(struct lpm_trie_node), i, max_entries, ?n1s) &*&
+	              	all_eq(n1s, unalloced_node()) == true &*& length(n1s) == i) &*&
+	              	nodes_im_p(node_mem_blocks, max_entries - i);@*/
 	{
 		/*@ if(i == 0) {
 		    	close nodes_p_2(node_mem_blocks + max_entries * sizeof(struct lpm_trie_node), ((i+1)-1),
 		    	              max_entries, unalloced_nodes((i+1)-1));
 		    }@*/
 		//@ assert nodes_p_2(node_mem_blocks + (max_entries-i)*sizeof(struct lpm_trie_node), i, max_entries, ?n2s);
+		//@ assert length(n2s) == i;
 		//@ assert all_eq(n2s, unalloced_node()) == true;
 		cur = (struct lpm_trie_node*) node_mem_blocks + (int) (max_entries-1-i);
 		//@ extract_im_node(node_mem_blocks, max_entries-1-i);
@@ -50,7 +55,7 @@ int init_nodes_mem(const void *node_mem_blocks, size_t max_entries)
 		cur->has_l_child = 0;
 		cur->has_r_child = 0;
 		cur->prefixlen = 0;
-		cur->value = NULL;
+		cur->value = 0;
 		cur->flags = 1;
 		memcpy(cur->data, empty_data, LPM_DATA_SIZE);
 		//@ assert chars((void*) cur->data, LPM_DATA_SIZE, ?chs);
@@ -127,12 +132,24 @@ struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 	return trie;
 }
 
-int lpm_trie_node_alloc(struct lpm_trie *trie, int *value)
-/*@ requires trie_p(trie, ?n, ?max_i); @*/
-/*@ ensures trie_p(trie, n, max_i) &*&
-            (result == INVALID_NODE_ID ? true : result >= 0 &*& result < max_i); @*/
+int lpm_trie_node_alloc(struct lpm_trie *trie, int value)
+/*@ requires trie_p_2(trie, ?t); @*/
+/*@ ensures trie_p_2(trie, ?t0) &*&
+            (result == INVALID_NODE_ID ? t0 == t :
+				switch(t) {
+					case trie(r, n, m, ns): return switch(t0) {
+							case trie(r0, n0, m0, n0s): return
+								r0 == r &*& n0 == n &*& m0 == m &*&
+								switch(nth(result, n0s)) {
+									case node(lc, mn, p, v, rc):
+										return (value == INVALID_VAL ? v == none : v == some(value)) &*& mn == result;
+								};
+						};
+				}); @*/
 {
-	//@ open trie_p(trie, n, max_i);
+	//@ open trie_p_2(trie, t);
+	struct lpm_trie_node *node_mem_blocks = trie->node_mem_blocks;
+	int max_i = (int) trie->max_entries;
 	int index;
 	//@ assert trie->dchain |-> ?dchain;
 	//@ assert double_chainp(?ch, dchain);
@@ -140,27 +157,71 @@ int lpm_trie_node_alloc(struct lpm_trie *trie, int *value)
 	//@ allocate_preserves_index_range(ch, index, 1);
 	//@ allocate_keeps_high_bounded(ch, index, 1);
 	if(!res){
-		//@ close trie_p(trie, n, max_i);
+		//@ close trie_p_2(trie, t);
 		return INVALID_NODE_ID;
 	}
 
 	//Allocate next index to the new node
-	struct lpm_trie_node *node = trie->node_mem_blocks + index;
-	//@ extract_node(trie->node_mem_blocks, index);
-	//@ open node_p(node, max_i);
+	struct lpm_trie_node *node = node_mem_blocks + index;
+	//@ assert nodes_p_2(node_mem_blocks, ?length, max_i, ?ns);
+	//@ assert length == length(ns);
+	//@ extract_node_2(node_mem_blocks, index, ns);
 
-	if(value == NULL) {
+	//@ assert node_p_2(node, max_i, ?n);
+	//@ open node_p_2(node, max_i, n);
+	if(value == INVALID_VAL) {
 		//This allows to allocate intermediary nodes by giving a NULL value
 		node->flags = 1;
 	} else {
 		node->flags = 0;
 	}
+
 	node->value = value;
 	node->mem_index = index;
+	node->has_l_child = 0;
+	node->has_r_child = 0;
 
-	//@ close node_p(node, max_i);
+	int i = index;
+	int r = trie->root;
+	int n_entries = (int) trie->n_entries;
+	/*@
+		switch(n) {
+			case node(lc, m, p, v, rc):
+				if(value == INVALID_VAL) {
+					assert valid_mem_indexes(?l_child, ?r_child, ?mem_index, ?has_l, ?has_r, m, lc, rc);
+					open valid_mem_indexes(l_child, r_child, mem_index, has_l, has_r, m, lc, rc);
+					close valid_mem_indexes(l_child, r_child, i, 0, 0, i, none, none);
+					close node_p_2(node, max_i, node(none, i, p, none, none));
+					assert nodes_p_2(node_mem_blocks, i, max_i, take(i, ns));
+					assert nodes_p_2(node_mem_blocks+i+1, length(ns)-i-1, max_i, drop(i+1, ns));
+					take_update_unrelevant(i, i, node(none, i, p, none, none), ns);
+					drop_update_unrelevant(i+1, i, node(none, i, p, none, none), ns);
+					close_nodes_2(node_mem_blocks, i, update(i, node(none, i, p, none, none), ns));
+					switch(t) {
+						case trie(tr, tn, tm, tns):
+							close trie_p_2(trie, trie(tr, tn, tm, update(i, node(none, i, p, none, none), ns)));
+					}
+				} else {
+					assert valid_mem_indexes(?l_child, ?r_child, ?mem_index, ?has_l, ?has_r, m, lc, rc);
+					open valid_mem_indexes(l_child, r_child, mem_index, has_l, has_r, m, lc, rc);
+					close valid_mem_indexes(l_child, r_child, i, 0, 0, i, none, none);
+					close node_p_2(node, max_i, node(none, i, p, some(value), none));
+					assert nodes_p_2(node_mem_blocks, i, max_i, take(i, ns));
+					assert nodes_p_2(node_mem_blocks+i+1, length(ns)-i-1, max_i, drop(i+1, ns));
+					take_update_unrelevant(i, i, node(none, i, p, some(value), none), ns);
+					drop_update_unrelevant(i+1, i, node(none, i, p, some(value), none), ns);
+					close_nodes_2(node_mem_blocks, i, update(i, node(none, i, p, some(value), none), ns));
+					switch(t) {
+						case trie(tr, tn, tm, tns):
+							close trie_p_2(trie, trie(tr, tn, tm, update(i, node(none, i, p, some(value), none), ns)));
+					}
+				}
+		}
+	@*/
+
+	/* //@ close node_p(node, max_i);
 	//@ close_nodes(trie->node_mem_blocks, index, trie->max_entries);
-	//@ close trie_p(trie, n, max_i);
+	//@ close trie_p(trie, n, max_i); */
 	return index;
 }
 
@@ -270,7 +331,7 @@ size_t longest_prefix_match(const struct lpm_trie_node *node,
 	return prefixlen;
 }
 
-int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
+int trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 /*@ requires trie_p(trie, ?n, ?max_i) &*& key_p(key) &*& n > 0; @*/
 /*@ ensures trie_p(trie, n, max_i) &*& key_p(key); @*/
 {
@@ -369,14 +430,14 @@ int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	if (found_id == INVALID_NODE_ID) {
 		//@ close_nodes(node_base, node_id, max_i);
 		//@ close trie_p(trie, n, max_i);
-		return NULL;
+		return INVALID_VAL;
 	}
 
 	//@ close_nodes(node_base, node_id, max_i);
 	struct lpm_trie_node *found = node_base + found_id;
 	//@ extract_node(node_base, found_id);
 	//@ open node_p(found, max_i);
-	int *res = found->value;
+	int res = found->value;
 	//@ close node_p(found, max_i);
 	//@ close_nodes(node_base, found_id, max_i);
 	//@ close trie_p(trie, n, max_i);

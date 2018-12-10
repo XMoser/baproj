@@ -15,6 +15,7 @@
 #define LPM_DATA_SIZE 		4
 #define LPM_PLEN_MAX		32
 #define INVALID_NODE_ID -1
+#define INVALID_VAL -1
 
 #define min(a, b) ((a<b) ? (a) : (b))
 
@@ -28,7 +29,7 @@ struct lpm_trie_node {
 	int has_r_child;
 	uint32_t prefixlen;
 	uint32_t flags;
-	int *value;
+	int value;
 	uint8_t data[LPM_DATA_SIZE];
 };
 
@@ -72,7 +73,8 @@ struct lpm_trie_key {
 				trie->node_mem_blocks |-> ?mem_blocks &*&
 				malloc_block_chars((void*)mem_blocks,
 								   (sizeof(struct lpm_trie_node) * max)) &*&
-				nodes_p_2(mem_blocks, max, max, ?ns);
+				nodes_p_2(mem_blocks, max, max, ?ns) &*&
+				length(ns) == max;
 		};
 
 	predicate node_p_2(struct lpm_trie_node *node, int max, node_t n) =
@@ -95,8 +97,8 @@ struct lpm_trie_key {
 					node->flags |-> ?flags &*&
 					node->value |-> ?val &*&
 					switch(v) {
-						case none: return val == NULL &*& flags == 1;
-						case some(vv): return integer(val, vv) &*& flags == 0;
+						case none: return flags == 1;
+						case some(vv): return val == vv &*& flags == 0;
 					} &*&
 					chars(node->data, LPM_DATA_SIZE, ?chs) &*&
 					are_bits(p) &*&
@@ -159,7 +161,7 @@ struct lpm_trie_key {
 			ns == nil
 		:
 			node_p_2(node, max_i, ?n) &*& nodes_p_2(node+1, count-1, max_i, ?ns0) &*&
-			ns == cons(n, ns0);
+			ns == cons(n, ns0) &*& length(ns) == length(ns0) + 1;
 
 	lemma void extract_node_2(struct lpm_trie_node *nodes, int i, list<node_t> ns)
 	requires nodes_p_2(nodes, length(ns), ?max_i, ns) &*&
@@ -307,7 +309,7 @@ struct lpm_trie_key {
 	        (void*) &(node->flags) &*&
 	        (void*) &(node->flags) + sizeof(uint32_t) ==
 	        (void*) &(node->value) &*&
-	        (void*) &(node->value) + sizeof(int*) ==
+	        (void*) &(node->value) + sizeof(int) ==
 	        (void*) node->data;
 @*/
 
@@ -334,8 +336,8 @@ struct lpm_trie_key {
 		            sizeof(uint32_t));
 		chars_to_u_integer((void*) &(node_s->flags));
 		chars_split((void*) node + 5*sizeof(int) + 2*sizeof(uint32_t),
-		            sizeof(int*));
-		chars_to_pointer((void*) &(node_s->value));
+		            sizeof(int));
+		chars_to_integer((void*) &(node_s->value));
 		chars_split((void*) node + 5*sizeof(int) + 2*sizeof(uint32_t) +
 		            sizeof(int*), LPM_DATA_SIZE*sizeof(uint8_t));
 		close lpm_trie_node_l_child(node, _);
@@ -403,7 +405,7 @@ struct lpm_trie_key {
 		u_integer_to_chars((void*) &node->flags);
 		chars_join(_node);
 		open lpm_trie_node_value(node, _);
-		pointer_to_chars((void*) &node->value);
+		integer_to_chars((void*) &node->value);
 		chars_join(_node);
 		uchars_to_chars((void*) node->data);
 		chars_join(_node);
@@ -447,7 +449,7 @@ struct lpm_trie_key {
 				clear_foreach_is_bit(p0);
 		}
 	}
-	
+
 	lemma void clear_valid_data(list<char> chs, list<int> p, list<int> old_p)
 	requires valid_data(chs, p, old_p);
 	ensures true;
@@ -481,12 +483,12 @@ struct lpm_trie_key {
 				open are_bits(p);
 				assert foreach(p, is_bit);
 				clear_foreach_is_bit(p);
-				switch(v) {
-					case none: assert val == NULL;
-					case some(vv):
-						assert integer(val, vv);
-						leak integer(val, vv);
-				}
+				//switch(v) {
+				//	case none: assert val == NULL;
+				//	case some(vv):
+				//		assert integer(val, vv);
+				//		leak integer(val, vv);
+				//}
 				assert valid_data(chs, p, p);
 				clear_valid_data(chs, p, p);
 				assert valid_mem_indexes(l_child, r_child, mem_index,
@@ -516,7 +518,7 @@ struct lpm_trie_key {
 		u_integer_to_chars((void*) &node->flags);
 		chars_join(_node);
 		open lpm_trie_node_value(node, _);
-		pointer_to_chars((void*) &node->value);
+		integer_to_chars((void*) &node->value);
 		chars_join(_node);
 		//uchars_to_chars((void*) node->data);
 		chars_join(_node);
@@ -578,7 +580,7 @@ struct lpm_trie_key {
 		u_integer_to_chars((void*) &node->flags);
 		chars_join(_node);
 		open lpm_trie_node_value(node, _);
-		pointer_to_chars((void*) &node->value);
+		integer_to_chars((void*) &node->value);
 		chars_join(_node);
 		uchars_to_chars((void*) node->data);
 		chars_join(_node);
@@ -661,9 +663,20 @@ struct lpm_trie_key {
 	}
 @*/
 
-int lpm_trie_node_alloc(struct lpm_trie *trie, int *value);
-/*@ requires trie_p(trie, ?n, ?max_i); @*/
-/*@ ensures trie_p(trie, n, max_i); @*/
+int lpm_trie_node_alloc(struct lpm_trie *trie, int value);
+/*@ requires trie_p_2(trie, ?t); @*/
+/*@ ensures trie_p_2(trie, ?t0) &*&
+            (result == INVALID_NODE_ID ? t0 == t :
+				switch(t) {
+					case trie(r, n, m, ns): return switch(t0) {
+							case trie(r0, n0, m0, n0s): return
+								r0 == r &*& n0 == n &*& m0 == m &*&
+								switch(nth(result, n0s)) {
+									case node(lc, mn, p, v, rc):
+										return (value == INVALID_VAL ? v == none : v == some(value)) &*& mn == result;
+								};
+						};
+				}); @*/
 
 struct lpm_trie *lpm_trie_alloc(size_t max_entries);
 /*@ requires max_entries > 0 &*& max_entries <= IRANG_LIMIT; @*/
@@ -683,7 +696,7 @@ size_t longest_prefix_match(const struct lpm_trie_node *node,
 /*@ requires node_p(node, ?max_i) &*& key_p(key); @*/
 /*@ ensures node_p(node, max_i) &*& key_p(key); @*/
 
-int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
+int trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
 /*@ requires trie_p(trie, ?n, ?max_i) &*& key_p(key) &*& n > 0; @*/
 /*@ ensures trie_p(trie, n, max_i) &*& key_p(key); @*/
 
