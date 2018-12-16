@@ -66,6 +66,7 @@ int init_nodes_mem(const void *node_mem_blocks, size_t max_entries)
 				close foreach(p, is_bit);
 				close are_bits(p);
 				close valid_data(chs, p, p);
+			case empty:
 		    }
 		@*/
 		//@ close node_p_2(node_mem_blocks + (max_entries-1-i)*sizeof(struct lpm_trie_node), max_entries, unalloced_node());
@@ -134,18 +135,10 @@ struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 
 int lpm_trie_node_alloc(struct lpm_trie *trie, int value)
 /*@ requires trie_p_2(trie, ?t); @*/
-/*@ ensures trie_p_2(trie, ?t0) &*&
-            (result == INVALID_NODE_ID ? t0 == t :
-				switch(t) {
-					case trie(r, n, m, ns): return switch(t0) {
-							case trie(r0, n0, m0, n0s): return
-								r0 == r &*& n0 == n &*& m0 == m &*&
-								switch(nth(result, n0s)) {
-									case node(lc, mn, p, v, rc):
-										return (value == INVALID_VAL ? v == none : v == some(value)) &*& mn == result;
-								};
-						};
-				}); @*/
+/*@ ensures trie_p_2(trie, t) &*&
+            (result == INVALID_NODE_ID ? true : switch(t){
+            	case trie(tr, tn, tm): return result >= 0 &*& result < tm;
+            }); @*/
 {
 	//@ open trie_p_2(trie, t);
 	struct lpm_trie_node *node_mem_blocks = trie->node_mem_blocks;
@@ -190,33 +183,28 @@ int lpm_trie_node_alloc(struct lpm_trie *trie, int value)
 				if(value == INVALID_VAL) {
 					assert valid_mem_indexes(?l_child, ?r_child, ?mem_index, ?has_l, ?has_r, m, lc, rc);
 					open valid_mem_indexes(l_child, r_child, mem_index, has_l, has_r, m, lc, rc);
-					close valid_mem_indexes(l_child, r_child, i, 0, 0, i, none, none);
-					close node_p_2(node, max_i, node(none, i, p, none, none));
+					close valid_mem_indexes(l_child, r_child, i, 0, 0, i, empty, empty);
+					close node_p_2(node, max_i, node(empty, i, p, none, empty));
 					assert nodes_p_2(node_mem_blocks, i, max_i, take(i, ns));
 					assert nodes_p_2(node_mem_blocks+i+1, length(ns)-i-1, max_i, drop(i+1, ns));
-					take_update_unrelevant(i, i, node(none, i, p, none, none), ns);
-					drop_update_unrelevant(i+1, i, node(none, i, p, none, none), ns);
-					close_nodes_2(node_mem_blocks, i, update(i, node(none, i, p, none, none), ns));
-					switch(t) {
-						case trie(tr, tn, tm, tns):
-							close trie_p_2(trie, trie(tr, tn, tm, update(i, node(none, i, p, none, none), ns)));
-					}
+					take_update_unrelevant(i, i, node(empty, i, p, none, empty), ns);
+					drop_update_unrelevant(i+1, i, node(empty, i, p, none, empty), ns);
+					close_nodes_2(node_mem_blocks, i, update(i, node(empty, i, p, none, empty), ns));
+					close trie_p_2(trie, t);
 				} else {
 					assert valid_mem_indexes(?l_child, ?r_child, ?mem_index, ?has_l, ?has_r, m, lc, rc);
 					open valid_mem_indexes(l_child, r_child, mem_index, has_l, has_r, m, lc, rc);
-					close valid_mem_indexes(l_child, r_child, i, 0, 0, i, none, none);
-					close node_p_2(node, max_i, node(none, i, p, some(value), none));
+					close valid_mem_indexes(l_child, r_child, i, 0, 0, i, empty, empty);
+					close node_p_2(node, max_i, node(empty, i, p, some(value), empty));
 					assert nodes_p_2(node_mem_blocks, i, max_i, take(i, ns));
 					assert nodes_p_2(node_mem_blocks+i+1, length(ns)-i-1, max_i, drop(i+1, ns));
-					take_update_unrelevant(i, i, node(none, i, p, some(value), none), ns);
-					drop_update_unrelevant(i+1, i, node(none, i, p, some(value), none), ns);
-					close_nodes_2(node_mem_blocks, i, update(i, node(none, i, p, some(value), none), ns));
-					switch(t) {
-						case trie(tr, tn, tm, tns):
-							close trie_p_2(trie, trie(tr, tn, tm, update(i, node(none, i, p, some(value), none), ns)));
-					}
+					take_update_unrelevant(i, i, node(empty, i, p, some(value), empty), ns);
+					drop_update_unrelevant(i+1, i, node(empty, i, p, some(value), empty), ns);
+					close_nodes_2(node_mem_blocks, i, update(i, node(empty, i, p, some(value), empty), ns));
+					close trie_p_2(trie, t);
 				}
-		}
+			case empty:	
+		}	
 	@*/
 
 	/* //@ close node_p(node, max_i);

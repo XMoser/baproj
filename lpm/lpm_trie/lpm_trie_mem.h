@@ -47,11 +47,14 @@ struct lpm_trie_key {
 };
 
 /*@
-	inductive node_t = node(option<int>, int, list<int>, option<int>, option<int>);
-	inductive trie_t = trie(option<int>, int, int, list<node_t>);
+	//inductive node_t = node(option<int>, int, list<int>, option<int>, option<int>);
+	//inductive trie_t = trie(option<int>, int, int, list<node_t>);
+
+	inductive node_t = node(node_t, int, list<int>, option<int>, node_t) | empty;
+	inductive trie_t = trie(node_t, int, int);
 
 	predicate trie_p_2(struct lpm_trie *trie, trie_t t) =
-		switch(t) { case trie(tr, tn, tm, tnodes):
+		switch(t) { case trie(tr, tn, tm):
 			return
 				malloc_block_lpm_trie(trie) &*&
 				trie->root |-> ?r &*&
@@ -62,9 +65,9 @@ struct lpm_trie_key {
 				max > 0 &*&
 				max == tm &*&
 				switch(tr) {
-					case none: return n == 0;
-					case some(i):
-						return r >= 0 &*& r < max &*& n > 0;
+					case empty: return n == 0;
+					case node(r_lc, rm, rp, rv, r_rc):
+						return rm >= 0 &*& rm < max &*& n > 0;
 				} &*&
 				trie->dchain |-> ?dchain &*&
 				double_chainp(?ch, dchain) &*&
@@ -79,6 +82,7 @@ struct lpm_trie_key {
 
 	predicate node_p_2(struct lpm_trie_node *node, int max, node_t n) =
 		switch(n) {
+			case empty: return false;
 			case node(lc, m, p, v, rc):
 				return
 					node->l_child |-> ?l_child &*&
@@ -107,30 +111,30 @@ struct lpm_trie_key {
 
 	predicate valid_mem_indexes(int l_child, int r_child, int mem_index,
 	                                 int has_l, int has_r,
-	                                 int m, option<int> lc, option<int> rc) =
+	                                 int m, node_t lc, node_t rc) =
 		switch(lc) {
-			case none:
+			case empty:
 				return
 					switch(rc) {
-						case none:
+						case empty:
 							return has_l == 0 &*& has_r == 0;
-						case some(rc_id):
+						case node(r_lc, rm, rp, rv, r_rc):
 							return has_l == 0 &*& has_r == 1 &*&
-							       r_child != mem_index &*& r_child == rc_id &*&
+							       r_child != mem_index &*& r_child == rm &*&
 							       mem_index == m;
 					};
-			case some(lc_id):
+			case node(l_lc, lm, lp, lv, l_rc):
 				return
 					switch(rc) {
-						case none:
+						case empty:
 							return has_l == 1 &*& has_r == 0 &*&
-							       l_child != mem_index &*& l_child == lc_id &*&
+							       l_child != mem_index &*& l_child == lm &*&
 							       mem_index == m;
-						case some(rc_id):
+						case node(r_lc, rm, rp, rv, r_rc):
 							return has_l == 1 &*& has_r == 1 &*&
 							       l_child != mem_index &*& r_child != mem_index &*&
-							       l_child != r_child &*& l_child == lc_id &*&
-							       r_child == rc_id &*& mem_index == m;
+							       l_child != r_child &*& l_child == lm &*&
+							       r_child == rm &*& mem_index == m;
 					};
 		};
 
@@ -203,7 +207,7 @@ struct lpm_trie_key {
 
 
 	fixpoint node_t unalloced_node() {
-		return node(none, 0, nil, none, none);
+		return node(empty, 0, nil, none, empty);
 	}
 
 	fixpoint list<node_t> unalloced_nodes_aux(nat count) {
@@ -219,11 +223,11 @@ struct lpm_trie_key {
 	}
 
 	fixpoint trie_t empty_trie(int max) {
-		return trie(none, 0, max, unalloced_nodes(max));
+		return trie(empty, 0, max);
 	}
 
 	fixpoint node_t init_node(int id, option<int> val) {
-		return node(none, id, nil, val, none);
+		return node(empty, id, nil, val, empty);
 	}
 @*/
 
@@ -495,6 +499,7 @@ struct lpm_trie_key {
 				                         has_l, has_r, m, lc, rc);
 				open valid_mem_indexes(l_child, r_child, mem_index,
 				                         has_l, has_r, m, lc, rc);
+			case empty:
 		}
 
 		open lpm_trie_node_l_child(node, _);
@@ -520,6 +525,10 @@ struct lpm_trie_key {
 		open lpm_trie_node_value(node, _);
 		integer_to_chars((void*) &node->value);
 		chars_join(_node);
+		switch(n) {
+			case empty: uchars_to_chars((void*) node->data);
+			case node(lc, m, p, v, rc):
+		}
 		//uchars_to_chars((void*) node->data);
 		chars_join(_node);
 	}
@@ -666,17 +675,7 @@ struct lpm_trie_key {
 int lpm_trie_node_alloc(struct lpm_trie *trie, int value);
 /*@ requires trie_p_2(trie, ?t); @*/
 /*@ ensures trie_p_2(trie, ?t0) &*&
-            (result == INVALID_NODE_ID ? t0 == t :
-				switch(t) {
-					case trie(r, n, m, ns): return switch(t0) {
-							case trie(r0, n0, m0, n0s): return
-								r0 == r &*& n0 == n &*& m0 == m &*&
-								switch(nth(result, n0s)) {
-									case node(lc, mn, p, v, rc):
-										return (value == INVALID_VAL ? v == none : v == some(value)) &*& mn == result;
-								};
-						};
-				}); @*/
+            (result == INVALID_NODE_ID ? t0 == t : true); @*/
 
 struct lpm_trie *lpm_trie_alloc(size_t max_entries);
 /*@ requires max_entries > 0 &*& max_entries <= IRANG_LIMIT; @*/
