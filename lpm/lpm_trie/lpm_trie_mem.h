@@ -12,6 +12,7 @@
 //@ #include <bitops.gh>
 
 #define TRIE_SIZE_MAX 65535
+#define MAX_NODE_SIZE 500
 #define LPM_TREE_NODE_FLAG_IM	1
 #define LPM_DATA_SIZE 		4
 #define LPM_PLEN_MAX		32
@@ -63,18 +64,21 @@ struct lpm_trie_key {
 				n >= 0 &*&
 				n == tn &*&
 				trie->max_entries |-> ?max &*&
-				max > 0 &*&
+				max >= n &*&
+				IRANG_LIMIT >= max &*&
 				max == tm &*&
 				switch(tr) {
-					case empty: return n == 0;
+					case empty: return n == 0 &*& r == -1;
 					case node(r_lc, rm, rp, rv, r_rc):
-						return rm >= 0 &*& rm < max &*& n > 0;
+						return r == rm &*& rm >= 0 &*& rm < max &*& n > 0;
 				} &*&
 				trie->dchain |-> ?dchain &*&
 				double_chainp(?ch, dchain) &*&
 				dchain_index_range_fp(ch) == max &*&
 				dchain_high_fp(ch) <= 1 &*&
 				trie->node_mem_blocks |-> ?mem_blocks &*&
+				(void*)0 < ((void*)(mem_blocks)) &*&
+				(void*)(mem_blocks + max) <= (char*)UINTPTR_MAX &*&
 				malloc_block_chars((void*)mem_blocks,
 								   (sizeof(struct lpm_trie_node) * max)) &*&
 				nodes_p_2(mem_blocks, max, max, ?ns) &*&
@@ -217,11 +221,14 @@ struct lpm_trie_key {
 		(n == 0 ? true : r >= 0 &*& r < max) &*&
 		trie->max_entries |-> max &*&
 		max > 0 &*&
+		IRANG_LIMIT >= max &*&
 		trie->dchain |-> ?dchain &*&
 		double_chainp(?ch, dchain) &*&
 		dchain_index_range_fp(ch) == max &*&
 		dchain_high_fp(ch) <= 1 &*&
 		trie->node_mem_blocks |-> ?mem_blocks &*&
+		(void*)0 < ((void*)(mem_blocks)) &*&
+		(void*)(mem_blocks + max) <= (char*)UINTPTR_MAX &*&
 		malloc_block_chars((void*)mem_blocks,
 		                   (sizeof(struct lpm_trie_node) * max)) &*&
 		nodes_p(mem_blocks, max, max);
@@ -365,7 +372,8 @@ int lpm_trie_node_alloc(struct lpm_trie *trie, int value);
             (result == INVALID_NODE_ID ? t0 == t : true); @*/
 
 struct lpm_trie *lpm_trie_alloc(size_t max_entries);
-/*@ requires max_entries > 0 &*& max_entries <= IRANG_LIMIT; @*/
+/*@ requires max_entries > 0 &*& max_entries <= IRANG_LIMIT&*&
+             sizeof(struct lpm_trie_node) < MAX_NODE_SIZE; @*/
 /*@ ensures result == NULL ? true : trie_p_2(result, empty_trie(max_entries)); @*/
 
 void trie_free(struct lpm_trie *trie);
