@@ -726,23 +726,33 @@ static int fls(unsigned int x)
 	if (!x)
 		return 0;
 	if (!(x & 0xffff0000u)) {
-		x <<= 16;
+		//@ bitand_limits(0x0000ffffu, x, nat_of_int(16));
+		//@ shiftleft_limits(0x0000ffffu & x, nat_of_int(16), nat_of_int(16));
+		x = (x & 0x0000ffffu) << 16;
 		r -= 16;
 	}
 	if (!(x & 0xff000000u)) {
-		x <<= 8;
+		//@ bitand_limits(0x00ffffffu, x, nat_of_int(24));
+		//@ shiftleft_limits(0x00ffffffu & x, nat_of_int(24), nat_of_int(8));
+		x = (x & 0x00ffffffu) << 8;
 		r -= 8;
 	}
 	if (!(x & 0xf0000000u)) {
-		x <<= 4;
+		//@ bitand_limits(0x0fffffffu, x, nat_of_int(28));
+		//@ shiftleft_limits(0x0fffffffu & x, nat_of_int(28), nat_of_int(4));
+		x = (x & 0x0fffffffu) << 4;
 		r -= 4;
 	}
 	if (!(x & 0xc0000000u)) {
-		x <<= 2;
+		//@ bitand_limits(0x1fffffffu, x, nat_of_int(30));
+		//@ shiftleft_limits(0x1fffffffu & x, nat_of_int(30), nat_of_int(2));
+		x = (x & 0x1fffffffu) << 2;
 		r -= 2;
 	}
 	if (!(x & 0x80000000u)) {
-		x <<= 1;
+		//@ bitand_limits(0x3fffffffu, x, nat_of_int(31));
+		//@ shiftleft_limits(0x3fffffffu & x, nat_of_int(31), nat_of_int(1));
+		x = (x & 0x3fffffffu) << 1;
 		r -= 1;
 	}
 	return r;
