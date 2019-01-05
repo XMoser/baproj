@@ -3,7 +3,8 @@
 #include <string.h>
 #include <stddef.h>
 
-#define SIZE_MAX 65535
+//FIXME: Unify with lpm_trie_mem.h
+#define TRIE_SIZE_MAX 65535
 #define LPM_TREE_NODE_FLAG_IM	1
 #define LPM_DATA_SIZE 		4
 #define LPM_PLEN_MAX		32

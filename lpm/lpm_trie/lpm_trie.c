@@ -82,7 +82,7 @@ struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 /*@ ensures result == NULL ? true : trie_p_2(result, empty_trie(max_entries)); @*/
 {
 	if(max_entries == 0 ||
-	   max_entries > SIZE_MAX / sizeof(struct lpm_trie_node))
+	   max_entries > TRIE_SIZE_MAX / sizeof(struct lpm_trie_node))
         return NULL;
 
 	struct lpm_trie *trie = malloc(sizeof(struct lpm_trie));

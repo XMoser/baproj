@@ -10,7 +10,7 @@
 //@ #include "arith.gh"
 //@ #include <nat.gh>
 
-#define SIZE_MAX 65535
+#define TRIE_SIZE_MAX 65535
 #define LPM_TREE_NODE_FLAG_IM	1
 #define LPM_DATA_SIZE 		4
 #define LPM_PLEN_MAX		32
