@@ -94,7 +94,7 @@ struct lpm_trie_key {
 					r_child >= 0 &*& r_child < max &*&
 					mem_index >= 0 &*& mem_index < max &*&
 					valid_mem_indexes(l_child, r_child, mem_index,
-					                  has_l, has_r, m, lc, rc) &*&
+					                  has_l, has_r, m, lc, rc) == true &*&
 					node->prefixlen |-> ?plen &*&
 					plen == length(p) &*&
 					plen <= LPM_PLEN_MAX &*&
@@ -104,59 +104,77 @@ struct lpm_trie_key {
 						case none: return flags == 1;
 						case some(vv): return val == vv &*& flags == 0;
 					} &*&
-					chars(node->data, LPM_DATA_SIZE, ?chs) &*&
-					are_bits(p) &*&
-					valid_data(chs, p, p);
+					uchars(node->data, LPM_DATA_SIZE, ?chs) &*&
+					are_bits(p) == true &*&
+					valid_data(chs, p, p) == true;
 		};
 
-	predicate valid_mem_indexes(int l_child, int r_child, int mem_index,
+	fixpoint bool valid_mem_indexes(int l_child, int r_child, int mem_index,
 	                                 int has_l, int has_r,
-	                                 int m, node_t lc, node_t rc) =
+	                                 int m, node_t lc, node_t rc)
+	{
 		switch(lc) {
-			case empty:
-				return
-					switch(rc) {
-						case empty:
-							return has_l == 0 &*& has_r == 0;
-						case node(r_lc, rm, rp, rv, r_rc):
-							return has_l == 0 &*& has_r == 1 &*&
-							       r_child != mem_index &*& r_child == rm &*&
-							       mem_index == m;
-					};
-			case node(l_lc, lm, lp, lv, l_rc):
-				return
-					switch(rc) {
-						case empty:
-							return has_l == 1 &*& has_r == 0 &*&
-							       l_child != mem_index &*& l_child == lm &*&
-							       mem_index == m;
-						case node(r_lc, rm, rp, rv, r_rc):
-							return has_l == 1 &*& has_r == 1 &*&
-							       l_child != mem_index &*& r_child != mem_index &*&
-							       l_child != r_child &*& l_child == lm &*&
-							       r_child == rm &*& mem_index == m;
-					};
-		};
+			case empty: return switch(rc) {
+				case empty:
+					return has_l == 0 && has_r == 0;
+				case node(r_lc, rm, rp, rv, r_rc):
+					return has_l == 0 && has_r == 1 &&
+					       r_child != mem_index && r_child == rm &&
+					       mem_index == m;
+			};
+			case node(l_lc, lm, lp, lv, l_rc): return switch(rc) {
+				case empty:
+					return has_l == 1 && has_r == 0 &&
+					       l_child != mem_index && l_child == lm &&
+					       mem_index == m;
+				case node(r_lc, rm, rp, rv, r_rc):
+					return has_l == 1 && has_r == 1 &&
+					       l_child != mem_index && r_child != mem_index &&
+					       l_child != r_child && l_child == lm &&
+					       r_child == rm && mem_index == m;
+			};
+		}
+	}
 
-	predicate is_bit(int i) = i == 0 || i == 1;
+	fixpoint bool is_bit(int i) { return i == 0 || i == 1; }
 
-	predicate are_bits(list<int> is) = foreach(is, is_bit);
-
-	predicate valid_data(list<char> data, list<int> ps, list<int> old_ps) =
-		switch(ps) {
+	fixpoint bool are_bits(list<int> is) {
+		switch(is) {
 			case nil: return true;
-			case cons(p, p0s):
-				return bool_to_int(extract_bit(data, index_of(p, old_ps))) == p &*&
-				       valid_data(data, p0s, old_ps);
-		};
+			case cons(i, is0): return is_bit(i) && are_bits(is0);
+		}
+	}
 
+	fixpoint int extract_bit_single(unsigned char c, int index) {
+		return (c & (1 << (7 - index)));
+	}
 
-	fixpoint bool extract_bit(list<char> data, int index) {
-		return !!(nth(index / 8, data) & (1 << (7 - (index % 8))));
+	fixpoint int extract_bit(list<unsigned char> data, int index) {
+		return extract_bit_single(nth(index/8, data), index % 8);
 	}
 
 	fixpoint int bool_to_int(bool b) {
 		return (b ? 1 : 0);
+	}
+
+	fixpoint bool valid_data_single(unsigned char c, list<int> ps, list<int> old_ps)
+	{
+		switch(ps) {
+			case nil: return true;
+			case cons(p, p0s):
+				return extract_bit_single(c, index_of(p, old_ps)) == p &&
+				       valid_data_single(c, p0s, old_ps);
+		}
+	}
+
+	fixpoint bool valid_data(list<unsigned char> data, list<int> ps, list<int> old_ps)
+	{
+		switch(ps) {
+			case nil: return true;
+			case cons(p, p0s):
+				return extract_bit(data, index_of(p, old_ps)) == p &&
+				       valid_data(data, p0s, old_ps);
+		}
 	}
 
 	predicate nodes_p_2(struct lpm_trie_node *node, int count, int max_i,
@@ -166,6 +184,13 @@ struct lpm_trie_key {
 		:
 			node_p_2(node, max_i, ?n) &*& nodes_p_2(node+1, count-1, max_i, ?ns0) &*&
 			ns == cons(n, ns0) &*& length(ns) == length(ns0) + 1;
+
+	predicate key_p_2(struct lpm_trie_key *key, list<int> ps) =
+		malloc_block_lpm_trie_key(key) &*&
+		key->prefixlen |-> ?plen &*&
+		plen == length(ps) &*&
+		uchars((void*) key->data, LPM_DATA_SIZE, ?chs) &*&
+		are_bits(ps) == true &*& valid_data(chs, ps, ps) == true;
 
 	lemma void extract_node_2(struct lpm_trie_node *nodes, int i, list<node_t> ns)
 	requires nodes_p_2(nodes, length(ns), ?max_i, ns) &*&
@@ -222,13 +247,39 @@ struct lpm_trie_key {
 		return unalloced_nodes_aux(nat_of_int(count));
 	}
 
+	fixpoint node_t init_node(int id, option<int> val) {
+		return node(empty, id, nil, val, empty);
+	}
+
+	fixpoint list<int> node_prefix_fp(node_t node) {
+		switch(node) {
+			case empty: return nil;
+			case node(lc, m, p, v, rc): return p;
+		}
+	}
+
 	fixpoint trie_t empty_trie(int max) {
 		return trie(empty, 0, max);
 	}
 
-	fixpoint node_t init_node(int id, option<int> val) {
-		return node(empty, id, nil, val, empty);
+	fixpoint int match_length_aux(list<int> p1, list<int> p2, int acc){
+		switch(p1) {
+			case nil: return acc;
+			case cons(h1, t1): return switch(p2) {
+				case nil: return acc;
+				case cons(h2, t2):
+					return (h1 == h2 ? match_length_aux(t1, t2, acc + 1) : acc);
+			};
+		}
 	}
+
+	fixpoint int match_length(node_t node, list<int> p){
+		switch(node) {
+			case empty: return 0;
+			case node(lc, m, np, v, rc):
+				return match_length_aux(np, p, 0);
+		}
+    	}
 @*/
 
 /*@
@@ -441,31 +492,6 @@ struct lpm_trie_key {
 		}
 	}
 
-	lemma void clear_foreach_is_bit(list<int> p)
-	requires foreach(p, is_bit);
-	ensures true;
-	{
-		switch(p) {
-			case nil: open foreach(p, is_bit);
-			case cons(x, p0):
-				open foreach(p, is_bit);
-				open is_bit(x);
-				clear_foreach_is_bit(p0);
-		}
-	}
-
-	lemma void clear_valid_data(list<char> chs, list<int> p, list<int> old_p)
-	requires valid_data(chs, p, old_p);
-	ensures true;
-	{
-		switch(p) {
-			case nil: open valid_data(chs, p, old_p);
-			case cons(x, p0):
-				open valid_data(chs, p, old_p);
-				clear_valid_data(chs, p0, old_p);
-		}
-	}
-
 	lemma void node_to_bytes_2(struct lpm_trie_node *node)
 	requires node_p_2(node, ?max_i, ?n);
 	ensures chars((void*) node, sizeof(struct lpm_trie_node), ?chs);
@@ -475,32 +501,12 @@ struct lpm_trie_key {
 		open node_p_2(node, max_i, n);
 
 		assert node->value |-> ?val;
-		assert chars((void*) node->data, LPM_DATA_SIZE, ?chs);
+		assert uchars((void*) node->data, LPM_DATA_SIZE, ?chs);
 		assert node->l_child |-> ?l_child;
 		assert node->r_child |-> ?r_child;
 		assert node->mem_index |-> ?mem_index;
 		assert node->has_l_child |-> ?has_l;
 		assert node->has_r_child |-> ?has_r;
-		switch(n) {
-			case node(lc, m, p, v, rc):
-				assert are_bits(p);
-				open are_bits(p);
-				assert foreach(p, is_bit);
-				clear_foreach_is_bit(p);
-				//switch(v) {
-				//	case none: assert val == NULL;
-				//	case some(vv):
-				//		assert integer(val, vv);
-				//		leak integer(val, vv);
-				//}
-				assert valid_data(chs, p, p);
-				clear_valid_data(chs, p, p);
-				assert valid_mem_indexes(l_child, r_child, mem_index,
-				                         has_l, has_r, m, lc, rc);
-				open valid_mem_indexes(l_child, r_child, mem_index,
-				                         has_l, has_r, m, lc, rc);
-			case empty:
-		}
 
 		open lpm_trie_node_l_child(node, _);
 		integer_to_chars((void*) &node->l_child);
@@ -529,7 +535,7 @@ struct lpm_trie_key {
 			case empty: uchars_to_chars((void*) node->data);
 			case node(lc, m, p, v, rc):
 		}
-		//uchars_to_chars((void*) node->data);
+		uchars_to_chars((void*) node->data);
 		chars_join(_node);
 	}
 
@@ -692,8 +698,9 @@ bool extract_bit(const uint8_t *data, size_t index);
 
 size_t longest_prefix_match(const struct lpm_trie_node *node,
                             const struct lpm_trie_key *key);
-/*@ requires node_p(node, ?max_i) &*& key_p(key); @*/
-/*@ ensures node_p(node, max_i) &*& key_p(key); @*/
+/*@ requires node_p_2(node, ?max_i, ?n) &*& key_p_2(key, ?p); @*/
+/*@ ensures node_p_2(node, max_i, n) &*& key_p_2(key, p) &*&
+            result == match_length(n, p); @*/
 
 int trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
 /*@ requires trie_p(trie, ?n, ?max_i) &*& key_p(key) &*& n > 0; @*/
@@ -709,6 +716,19 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
 /*@ requires trie_p(trie, ?n, ?max_i) &*& n > 0 &*& key_p(key); @*/
 /*@ ensures trie_p(trie, _, max_i) &*& key_p(key); @*/
 
+/*@
+	lemma void fls_hack(unsigned int x)
+	requires true;
+	ensures ((x & 0xffff0000u) <= 0xffffffffu) == true &*&
+	        (((x << 16) & 00xff000000u) <= 0xffffffffu) == true &*&
+		    ((((x << 16) << 8) & 0xf0000000u) <= 0xffffffffu) == true &*&
+		    (((((x << 16) << 8) << 4) & 0xc0000000u) <= 0xffffffffu) == true &*&
+		    ((((((x << 16) << 8) << 4) << 2) & 0x80000000u) <= 0xffffffffu) == true;
+	{
+		assume(false);
+	}
+@*/
+
 /**
  * fls - find last (most-significant) bit set
  * @x: the word to search
@@ -720,7 +740,7 @@ static int fls(unsigned int x)
 /*@ requires true; @*/
 /*@ ensures true; @*/
 {
-//@ assume(false);
+//@ fls_hack(x);
 	int r = 32;
 
 	if (!x)
