@@ -10,6 +10,7 @@
 //@ #include "arith.gh"
 //@ #include <nat.gh>
 
+#define CHAR_IN_BITS 8
 #define SIZE_MAX 65535
 #define LPM_TREE_NODE_FLAG_IM	1
 #define LPM_DATA_SIZE 		4
@@ -699,18 +700,17 @@ bool extract_bit(const uint8_t *data, size_t index);
 size_t longest_prefix_match(const struct lpm_trie_node *node,
                             const struct lpm_trie_key *key);
 /*@ requires node_p_2(node, ?max_i, ?n) &*& key_p_2(key, ?p); @*/
-/*@ ensures node_p_2(node, max_i, n) &*& key_p_2(key, p) &*&
-            result == match_length(n, p); @*/
+/*@ ensures node_p_2(node, max_i, n) &*& key_p_2(key, p); @*/
 
 int trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
 /*@ requires trie_p(trie, ?n, ?max_i) &*& key_p(key) &*& n > 0; @*/
 /*@ ensures trie_p(trie, n, max_i) &*& key_p(key); @*/
 
-int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value);
+int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int value);
 /*@ requires trie_p(trie, _, ?max_i) &*&
-             key_p(key) &*& integer(value, _); @*/
+             key_p(key); @*/
 /*@ ensures trie_p(trie, _, max_i) &*&
-            key_p(key) &*& integer(value, _); @*/
+            key_p(key); @*/
 
 int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
 /*@ requires trie_p(trie, ?n, ?max_i) &*& n > 0 &*& key_p(key); @*/
