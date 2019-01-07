@@ -20,7 +20,10 @@
 @*/
 
 int init_nodes_mem(const void *node_mem_blocks, size_t max_entries)
-/*@ requires max_entries > 0 &*& nodes_im_p(node_mem_blocks, max_entries);@*/
+/*@ requires max_entries > 0 &*& max_entries <= IRANG_LIMIT &*&
+             nodes_im_p(node_mem_blocks, max_entries) &*&
+             (void*)0 < ((void*)(node_mem_blocks)) &*&
+             (void*)((struct lpm_trie_node*)node_mem_blocks + max_entries) <= (char*)UINTPTR_MAX;@*/
 /*@ ensures result == 0 ?
 	nodes_p_2(node_mem_blocks, max_entries, max_entries, ?ns) &*&
     	all_eq(ns, unalloced_node()) == true &*& length(ns) == max_entries
@@ -50,9 +53,11 @@ int init_nodes_mem(const void *node_mem_blocks, size_t max_entries)
 	//@ assert all_eq(cls, 0) == true;
 
 	for(size_t i = 0; i < max_entries; i++)
-	/*@ invariant (i < max_entries ? i >= 0 : i == max_entries) &*&
-	              uchars((void*) empty_data, LPM_DATA_SIZE, ?e_chs) &*&
-	              all_eq(e_chs, 0) == true &*&
+	/*@ invariant 0 <= i &*& i <= max_entries &*& max_entries <= IRANG_LIMIT &*&
+	              chars((void*) empty_data, LPM_DATA_SIZE, cls) &*&
+	              all_eq(cls, 0) == true &*&
+	              (void*)0 < ((void*)(node_mem_blocks)) &*&
+	              (void*)((struct lpm_trie_node*)node_mem_blocks + max_entries) <= (char*)UINTPTR_MAX &*&
 	              (i == 0 ? true :
 	              	nodes_p_2(node_mem_blocks + (max_entries-i)*sizeof(struct lpm_trie_node), i, max_entries, ?n1s) &*&
 	              	all_eq(n1s, unalloced_node()) == true &*& length(n1s) == i) &*&
@@ -65,7 +70,9 @@ int init_nodes_mem(const void *node_mem_blocks, size_t max_entries)
 		//@ assert nodes_p_2(node_mem_blocks + (max_entries-i)*sizeof(struct lpm_trie_node), i, max_entries, ?n2s);
 		//@ assert length(n2s) == i;
 		//@ assert all_eq(n2s, unalloced_node()) == true;
-		cur = (struct lpm_trie_node*) node_mem_blocks + (int) (max_entries-1-i);
+		int index = (int)(max_entries - 1 - i);
+		//@ mul_mono_strict(index, IRANG_LIMIT, sizeof(struct lpm_trie_node));
+		cur = (struct lpm_trie_node*) node_mem_blocks + index;
 		//@ extract_im_node(node_mem_blocks, max_entries-1-i);
 		/*@ open nodes_im_p(node_mem_blocks + ((max_entries-1-i)+1) * sizeof(struct lpm_trie_node),
 		                    (max_entries-i) - (max_entries-1-i) - 1);@*/
@@ -127,11 +134,12 @@ int init_nodes_mem(const void *node_mem_blocks, size_t max_entries)
 }
 
 struct lpm_trie *lpm_trie_alloc(size_t max_entries)
-/*@ requires max_entries > 0 &*& max_entries <= IRANG_LIMIT; @*/
+/*@ requires max_entries > 0 &*& max_entries <= IRANG_LIMIT &*&
+             sizeof(struct lpm_trie_node) < MAX_NODE_SIZE; @*/
 /*@ ensures result == NULL ? true : trie_p_2(result, empty_trie(max_entries)); @*/
 {
 	if(max_entries == 0 ||
-	   max_entries > SIZE_MAX / sizeof(struct lpm_trie_node))
+	   max_entries > TRIE_SIZE_MAX / sizeof(struct lpm_trie_node))
         return NULL;
 
 	struct lpm_trie *trie = malloc(sizeof(struct lpm_trie));
@@ -204,6 +212,10 @@ int lpm_trie_node_alloc(struct lpm_trie *trie, int value)
 	}
 
 	//Allocate next index to the new node
+	//@ assert 0 <= index;
+	//@ assert index < max_i;
+	//@ mul_mono_strict(index, max_i, sizeof(struct lpm_trie_node));
+
 	struct lpm_trie_node *node = node_mem_blocks + index;
 	//@ assert nodes_p_2(node_mem_blocks, ?length, max_i, ?ns);
 	//@ assert length == length(ns);
@@ -311,6 +323,7 @@ bool extract_bit(const uint8_t *data, size_t index)
 	//@ div_rem(index, 8);
 	//@ uchars_split(data, index/8);
 	//@ open uchars(data + index/8, LPM_DATA_SIZE - index/8, _);
+	//@ shiftleft_limits(1, nat_of_int(1), nat_of_int(7 - (index % 8)));
 	return !!(data[index / 8] & (1 << (7 - (index % 8))));
 	//@ close uchars(data + index/8, LPM_DATA_SIZE - index/8, _);
 	//@ uchars_join(data);
@@ -331,7 +344,7 @@ bool extract_bit(const uint8_t *data, size_t index)
 	requires valid_data(chs0, drop(i*CHAR_IN_BITS, ps), drop(i*CHAR_IN_BITS, ps)) == true &*&
 	         valid_data(chs1, take(i*CHAR_IN_BITS, ps), take(i*CHAR_IN_BITS, ps)) == true;
 	ensures valid_data(append(chs1, chs0), ps, ps) == true;
-	
+
 	lemma void tail_valid_data(list<char> chs, list<int> ints, int i);
 	requires valid_data(chs, drop(i*CHAR_IN_BITS, ints), drop(i*CHAR_IN_BITS, ints)) == true;
 	ensures valid_data(tail(chs), drop((i+1)*CHAR_IN_BITS, ints), drop((i+1)*CHAR_IN_BITS, ints)) == true;
@@ -365,9 +378,9 @@ size_t longest_prefix_match(const struct lpm_trie_node *node,
 	for (i = 0; i < LPM_DATA_SIZE; i++)
 	/*@ invariant node->prefixlen |-> node_plen &*& key->prefixlen |-> key_plen &*&
 	              uchars((void*) node->data + i, LPM_DATA_SIZE - i, ?nchs0) &*&
-	              uchars(node->data, i, ?nchs1) &*&	              
+	              uchars(node->data, i, ?nchs1) &*&
 	              valid_data(nchs0, drop(i*CHAR_IN_BITS, node_prefix_fp(n)), drop(i*CHAR_IN_BITS, node_prefix_fp(n))) == true &*&
-	              valid_data(nchs1, take(i*CHAR_IN_BITS, node_prefix_fp(n)), take(i*CHAR_IN_BITS, node_prefix_fp(n))) == true &*&	              
+	              valid_data(nchs1, take(i*CHAR_IN_BITS, node_prefix_fp(n)), take(i*CHAR_IN_BITS, node_prefix_fp(n))) == true &*&
 	              uchars((void*) key->data + i, LPM_DATA_SIZE - i, ?kchs0) &*&
 	              uchars(key->data, i, ?kchs1) &*&
 	              valid_data(kchs0, drop(i*CHAR_IN_BITS, p), drop(i*CHAR_IN_BITS, p)) == true &*&
@@ -377,6 +390,9 @@ size_t longest_prefix_match(const struct lpm_trie_node *node,
 
 		//@ open uchars((void*) node->data + i, LPM_DATA_SIZE - i, nchs0);
 		//@ open uchars((void*) key->data + i, LPM_DATA_SIZE - i, kchs0);
+		//@ u_character_limits(&node->data[i]);
+		//@ u_character_limits(&key->data[i]);
+		//@ bitxor_limits(node->data[i], key->data[i], nat_of_int(8));
 		//@ assert u_character((void*) node->data + i, head(nchs0));
 		//@ open_valid_data(nchs0, drop(i*CHAR_IN_BITS, node_prefix_fp(n)));
 		/*@ assert valid_data_single(head(nchs0), take(CHAR_IN_BITS, drop(i*CHAR_IN_BITS, node_prefix_fp(n))),
@@ -387,6 +403,7 @@ size_t longest_prefix_match(const struct lpm_trie_node *node,
 		                             take(CHAR_IN_BITS, drop(i*CHAR_IN_BITS, p))) == true; @*/
 		uint32_t nxk_i = (uint32_t) node->data[i] ^ key->data[i];
 		int last_set = fls(nxk_i);
+		//@ assume(0 <= last_set && last_set <= 8);//TODO
 		b = 8 - (uint32_t) last_set;
 		prefixlen += b;
 
