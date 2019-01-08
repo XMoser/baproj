@@ -8,8 +8,10 @@
 //@ #include "list.gh"
 //@ #include "../arith.gh"
 //@ #include <nat.gh>
+//@ #include <bitops.gh>
 
-#define SIZE_MAX 65535
+#define TRIE_SIZE_MAX 65535
+#define MAX_NODE_SIZE 500
 #define LPM_TREE_NODE_FLAG_IM	1
 #define LPM_DATA_SIZE 		4
 #define LPM_PLEN_MAX		32
@@ -53,11 +55,14 @@ struct lpm_trie_key {
 		(n == 0 ? true : r >= 0 &*& r < max) &*&
 		trie->max_entries |-> max &*&
 		max > 0 &*&
+		IRANG_LIMIT >= max &*&
 		trie->dchain |-> ?dchain &*&
 		double_chainp(?ch, dchain) &*&
 		dchain_index_range_fp(ch) == max &*&
 		dchain_high_fp(ch) <= 1 &*&
 		trie->node_mem_blocks |-> ?mem_blocks &*&
+		(void*)0 < ((void*)(mem_blocks)) &*&
+		(void*)(mem_blocks + max) <= (char*)UINTPTR_MAX &*&
 		malloc_block_chars((void*)mem_blocks,
 		                   (sizeof(struct lpm_trie_node) * max)) &*&
 		nodes_p(mem_blocks, max, max);
@@ -322,7 +327,8 @@ int lpm_trie_node_alloc(struct lpm_trie *trie, int *value);
 /*@ ensures trie_p(trie, n, max_i); @*/
 
 struct lpm_trie *lpm_trie_alloc(size_t max_entries);
-/*@ requires max_entries > 0 &*& max_entries <= IRANG_LIMIT; @*/
+/*@ requires max_entries > 0 &*& max_entries <= IRANG_LIMIT &*&
+             sizeof(struct lpm_trie_node) < MAX_NODE_SIZE; @*/
 /*@ ensures result == NULL ? true : trie_p(result, 0, max_entries); @*/
 
 void trie_free(struct lpm_trie *trie);
@@ -344,9 +350,9 @@ int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
 /*@ ensures trie_p(trie, n, max_i) &*& key_p(key); @*/
 
 int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value);
-/*@ requires trie_p(trie, _, ?max_i) &*&
+/*@ requires trie_p(trie, ?n1, ?max_i) &*& n1 < max_i &*&
              key_p(key) &*& integer(value, _); @*/
-/*@ ensures trie_p(trie, _, max_i) &*&
+/*@ ensures trie_p(trie, ?n2, max_i) &*&
             key_p(key) &*& integer(value, _); @*/
 
 int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
@@ -360,7 +366,7 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
  * This is defined the same way as ffs.
  * Note fls(0) = 0, fls(1) = 1, fls(0x80000000) = 32.
  */
-static int fls(unsigned int x)
+static unsigned int fls(unsigned int x)
 /*@ requires true; @*/
 /*@ ensures true; @*/
 {
@@ -370,22 +376,32 @@ static int fls(unsigned int x)
 	if (!x)
 		return 0;
 	if (!(x & 0xffff0000u)) {
+		//@ bitand_limits(0x0000ffffu, x, nat_of_int(16));
+		//@ shiftleft_limits(0x0000ffffu & x, nat_of_int(16), nat_of_int(16));
 		x <<= 16;
 		r -= 16;
 	}
 	if (!(x & 0xff000000u)) {
+		//@ bitand_limits(0x00ffffffu, x, nat_of_int(24));
+		//@ shiftleft_limits(0x00ffffffu & x, nat_of_int(24), nat_of_int(8));
 		x <<= 8;
 		r -= 8;
 	}
 	if (!(x & 0xf0000000u)) {
+		//@ bitand_limits(0x0fffffffu, x, nat_of_int(28));
+		//@ shiftleft_limits(0x0fffffffu & x, nat_of_int(28), nat_of_int(4));
 		x <<= 4;
 		r -= 4;
 	}
 	if (!(x & 0xc0000000u)) {
+		//@ bitand_limits(0x1fffffffu, x, nat_of_int(30));
+		//@ shiftleft_limits(0x1fffffffu & x, nat_of_int(30), nat_of_int(2));
 		x <<= 2;
 		r -= 2;
 	}
 	if (!(x & 0x80000000u)) {
+		//@ bitand_limits(0x3fffffffu, x, nat_of_int(31));
+		//@ shiftleft_limits(0x3fffffffu & x, nat_of_int(31), nat_of_int(1));
 		x <<= 1;
 		r -= 1;
 	}
