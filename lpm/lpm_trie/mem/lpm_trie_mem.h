@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-//@ #include "list.gh"
+//@ #include <list.gh>
 //@ #include "../arith.gh"
 //@ #include <nat.gh>
 //@ #include <bitops.gh>
@@ -16,6 +16,7 @@
 #define LPM_DATA_SIZE 		4
 #define LPM_PLEN_MAX		32
 #define INVALID_NODE_ID -1
+#define INVALID_VAL -1
 
 #define min(a, b) ((a<b) ? (a) : (b))
 
@@ -29,7 +30,7 @@ struct lpm_trie_node {
 	int has_r_child;
 	uint32_t prefixlen;
 	uint32_t flags;
-	int *value;
+	int value;
 	uint8_t data[LPM_DATA_SIZE];
 };
 
@@ -170,10 +171,10 @@ struct lpm_trie_key {
 		            sizeof(uint32_t));
 		chars_to_u_integer((void*) &(node_s->flags));
 		chars_split((void*) node + 5*sizeof(int) + 2*sizeof(uint32_t),
-		            sizeof(int*));
-		chars_to_pointer((void*) &(node_s->value));
+		            sizeof(int));
+		chars_to_integer((void*) &(node_s->value));
 		chars_split((void*) node + 5*sizeof(int) + 2*sizeof(uint32_t) +
-		            sizeof(int*), LPM_DATA_SIZE*sizeof(uint8_t));
+		            sizeof(int), LPM_DATA_SIZE*sizeof(uint8_t));
 		close lpm_trie_node_l_child(node, _);
 		close lpm_trie_node_r_child(node, _);
 		close lpm_trie_node_has_l_child(node, _);
@@ -239,7 +240,7 @@ struct lpm_trie_key {
 		u_integer_to_chars((void*) &node->flags);
 		chars_join(_node);
 		open lpm_trie_node_value(node, _);
-		pointer_to_chars((void*) &node->value);
+		integer_to_chars((void*) &node->value);
 		chars_join(_node);
 		uchars_to_chars((void*) node->data);
 		chars_join(_node);
@@ -322,7 +323,7 @@ struct lpm_trie_key {
 	}
 @*/
 
-int lpm_trie_node_alloc(struct lpm_trie *trie, int *value);
+int lpm_trie_node_alloc(struct lpm_trie *trie, int value);
 /*@ requires trie_p(trie, ?n, ?max_i); @*/
 /*@ ensures trie_p(trie, n, max_i); @*/
 
@@ -345,15 +346,15 @@ size_t longest_prefix_match(const struct lpm_trie_node *node,
 /*@ requires node_p(node, ?max_i) &*& key_p(key); @*/
 /*@ ensures node_p(node, max_i) &*& key_p(key); @*/
 
-int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
+int trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
 /*@ requires trie_p(trie, ?n, ?max_i) &*& key_p(key) &*& n > 0; @*/
 /*@ ensures trie_p(trie, n, max_i) &*& key_p(key); @*/
 
-int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value);
+int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int value);
 /*@ requires trie_p(trie, ?n1, ?max_i) &*& n1 < max_i &*&
-             key_p(key) &*& integer(value, _); @*/
+             key_p(key); @*/
 /*@ ensures trie_p(trie, ?n2, max_i) &*&
-            key_p(key) &*& integer(value, _); @*/
+            key_p(key); @*/
 
 int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
 /*@ requires trie_p(trie, ?n, ?max_i) &*& n > 0 &*& key_p(key); @*/

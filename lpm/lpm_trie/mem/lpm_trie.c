@@ -98,7 +98,7 @@ struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 	return trie;
 }
 
-int lpm_trie_node_alloc(struct lpm_trie *trie, int *value)
+int lpm_trie_node_alloc(struct lpm_trie *trie, int value)
 /*@ requires trie_p(trie, ?n, ?max_i); @*/
 /*@ ensures trie_p(trie, n, max_i) &*&
             (result == INVALID_NODE_ID ? true : result >= 0 &*& result < max_i); @*/
@@ -217,7 +217,7 @@ size_t longest_prefix_match(const struct lpm_trie_node *node,
 			//@ uchars_join(node->data);
 			//@ uchars_join(key->data);
 			break;
-		}	
+		}
 		b = 8 - last_set;
 		//@ assert prefixlen + b <= prefixlen + 8;
 		prefixlen += b;
@@ -252,7 +252,7 @@ size_t longest_prefix_match(const struct lpm_trie_node *node,
 	return prefixlen;
 }
 
-int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
+int trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 /*@ requires trie_p(trie, ?n, ?max_i) &*& key_p(key) &*& n > 0; @*/
 /*@ ensures trie_p(trie, n, max_i) &*& key_p(key); @*/
 {
@@ -351,25 +351,25 @@ int *trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	if (found_id == INVALID_NODE_ID) {
 		//@ close_nodes(node_base, node_id, max_i);
 		//@ close trie_p(trie, n, max_i);
-		return NULL;
+		return INVALID_VAL;
 	}
 
 	//@ close_nodes(node_base, node_id, max_i);
 	struct lpm_trie_node *found = node_base + found_id;
 	//@ extract_node(node_base, found_id);
 	//@ open node_p(found, max_i);
-	int *res = found->value;
+	int res = found->value;
 	//@ close node_p(found, max_i);
 	//@ close_nodes(node_base, found_id, max_i);
 	//@ close trie_p(trie, n, max_i);
 	return res;
 }
 
-int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int *value)
+int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int value)
 /*@ requires trie_p(trie, ?n1, ?max_i) &*& n1 < max_i &*&
-             key_p(key) &*& integer(value, _); @*/
+             key_p(key); @*/
 /*@ ensures trie_p(trie, _, max_i) &*&
-            key_p(key) &*& integer(value, _); @*/
+            key_p(key); @*/
 {
 	struct lpm_trie_node *node;
 	struct lpm_trie_node *im_node = NULL;
