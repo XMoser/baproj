@@ -7,136 +7,52 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-//@ #include <prelude.h>
 //@ #include "arith.gh"
-//@ #include <list.gh>
 //@ #include <nat.gh>
-//@ #include "lib/listexex.gh"
 
-/*@
-	lemma void all_eq_append<t>(list<t> xs, list<t> ys, t z);
-	requires all_eq(xs, z) == true &*& all_eq(ys, z) == true;
-	ensures all_eq(append(xs, ys), z) == true;
-@*/
-
-int init_nodes_mem(const void *node_mem_blocks, size_t max_entries)
-/*@ requires max_entries > 0 &*& max_entries <= IRANG_LIMIT &*&
-             nodes_im_p(node_mem_blocks, max_entries) &*&
+void init_nodes_mem(const void *node_mem_blocks, size_t max_entries)
+/*@ requires max_entries > 0 &*& nodes_im_p(node_mem_blocks, max_entries) &*&
+             max_entries <= IRANG_LIMIT &*&
              (void*)0 < ((void*)(node_mem_blocks)) &*&
              (void*)((struct lpm_trie_node*)node_mem_blocks + max_entries) <= (char*)UINTPTR_MAX;@*/
-/*@ ensures result == 0 ?
-	nodes_p_2(node_mem_blocks, max_entries, max_entries, ?ns) &*&
-    	all_eq(ns, unalloced_node()) == true &*& length(ns) == max_entries
-    :
-	nodes_im_p(node_mem_blocks, max_entries); @*/
+/*@ ensures nodes_p(node_mem_blocks, max_entries, max_entries); @*/
 {
 	struct lpm_trie_node *cur;
-	uint8_t *empty_data = malloc(sizeof(uint8_t) * LPM_DATA_SIZE);
-	if(!empty_data) {
-		return -1;
-	}
-
-	//Cannot use memset here due to verifast char/uchar conversion
-	for(int i = 0; i < LPM_DATA_SIZE; i++)
-	/*@ invariant uchars((void*) empty_data + i, LPM_DATA_SIZE - i, ?chs1) &*&
-	              uchars((void*) empty_data, i, ?chs0) &*& all_eq(chs0, 0) == true; @*/
-	{
-		//@ open uchars((void*) empty_data + i, LPM_DATA_SIZE - i, chs1);
-		//@ assert u_character((void*) empty_data + i, head(chs1));
-		empty_data[i] = 0;
-		//@ close uchars((void*) empty_data + i, 1, cons(0, nil));
-		//@ assert all_eq(chs0, 0) == true;
-		//@ all_eq_append(chs0, cons(0, nil), 0);
-		//@ uchars_join((void*) empty_data);
-	}
-	//@ assert uchars((void*) empty_data, LPM_DATA_SIZE, ?cls);
-	//@ assert all_eq(cls, 0) == true;
-
 	for(size_t i = 0; i < max_entries; i++)
-	/*@ invariant 0 <= i &*& i <= max_entries &*& max_entries <= IRANG_LIMIT &*&
-	              chars((void*) empty_data, LPM_DATA_SIZE, cls) &*&
-	              all_eq(cls, 0) == true &*&
+	/*@ invariant (i < max_entries ? i >= 0 : i == max_entries) &*&
+	              max_entries <= IRANG_LIMIT &*&
 	              (void*)0 < ((void*)(node_mem_blocks)) &*&
 	              (void*)((struct lpm_trie_node*)node_mem_blocks + max_entries) <= (char*)UINTPTR_MAX &*&
 	              (i == 0 ? true :
-	              	nodes_p_2(node_mem_blocks + (max_entries-i)*sizeof(struct lpm_trie_node), i, max_entries, ?n1s) &*&
-	              	all_eq(n1s, unalloced_node()) == true &*& length(n1s) == i) &*&
-	              	nodes_im_p(node_mem_blocks, max_entries - i);@*/
+	               nodes_p(node_mem_blocks + (max_entries-i)*sizeof(struct lpm_trie_node), i, max_entries)) &*&
+	              nodes_im_p(node_mem_blocks, max_entries - i);@*/
 	{
 		/*@ if(i == 0) {
-		    	close nodes_p_2(node_mem_blocks + max_entries * sizeof(struct lpm_trie_node), ((i+1)-1),
-		    	              max_entries, unalloced_nodes((i+1)-1));
+		    	close nodes_p(node_mem_blocks + max_entries * sizeof(struct lpm_trie_node), ((i+1)-1),
+		    	              max_entries);
 		    }@*/
-		//@ assert nodes_p_2(node_mem_blocks + (max_entries-i)*sizeof(struct lpm_trie_node), i, max_entries, ?n2s);
-		//@ assert length(n2s) == i;
-		//@ assert all_eq(n2s, unalloced_node()) == true;
 		int index = (int)(max_entries - 1 - i);
 		//@ mul_mono_strict(index, IRANG_LIMIT, sizeof(struct lpm_trie_node));
 		cur = (struct lpm_trie_node*) node_mem_blocks + index;
 		//@ extract_im_node(node_mem_blocks, max_entries-1-i);
 		/*@ open nodes_im_p(node_mem_blocks + ((max_entries-1-i)+1) * sizeof(struct lpm_trie_node),
 		                    (max_entries-i) - (max_entries-1-i) - 1);@*/
-		//@ assert node_im_p(cur);
 		//@ open node_im_p(node_mem_blocks + (max_entries-1-i)*sizeof(struct lpm_trie_node));
 		cur->l_child = 0;
 		cur->r_child = 0;
 		cur->mem_index = 0;
 		cur->has_l_child = 0;
 		cur->has_r_child = 0;
-		cur->prefixlen = 0;
-		cur->value = 0;
-		cur->flags = 1;
-
-		//Cannot use memcpy here due to verifast char/uchar conversion
-		//memcpy(cur->data, empty_data, LPM_DATA_SIZE);
-		for(int j = 0; j < LPM_DATA_SIZE; j++)
-		/*@ invariant (j < LPM_DATA_SIZE ? j >= 0 : j == LPM_DATA_SIZE) &*&
-		              uchars((void*) empty_data + j, LPM_DATA_SIZE - j, ?e_chs1) &*&
-		              uchars((void*) empty_data, j, ?e_chs0) &*&
-		              all_eq(e_chs0, 0) == true &*& all_eq(e_chs1, 0) == true &*&
-		              uchars((void*) cur->data + j, LPM_DATA_SIZE - j, ?c_chs1) &*&
-		              uchars((void*) cur->data, j, ?c_chs0) &*& all_eq(c_chs0, 0) == true; @*/
-		{
-			//@ open uchars((void*) empty_data + j, LPM_DATA_SIZE - j, e_chs1);
-			//@ open uchars((void*) cur->data + j, LPM_DATA_SIZE - j, c_chs1);
-			//@ assert u_character((void*) empty_data + j, head(e_chs1));
-			//@ assert u_character((void*) cur->data + j, head(c_chs1));
-			cur->data[j] = empty_data[j];
-			//@ close uchars((void*) empty_data + j, 1, cons(head(e_chs1), nil));
-			//@ close uchars((void*) cur->data + j, 1, cons(0, nil));
-			//@ assert all_eq(e_chs0, 0) == true;
-			//@ assert all_eq(c_chs0, 0) == true;
-			//@ all_eq_append(e_chs0, cons(head(e_chs1), nil), 0);
-			//@ all_eq_append(c_chs0, cons(0, nil), 0);
-			//@ uchars_join((void*) empty_data);
-			//@ uchars_join((void*) cur->data);
-		}
-		//@ open uchars((void*) empty_data + LPM_DATA_SIZE, LPM_DATA_SIZE-LPM_DATA_SIZE, _);
-		//@ open uchars((void*) cur->data + LPM_DATA_SIZE, LPM_DATA_SIZE-LPM_DATA_SIZE, _);
-
-		//@ assert uchars((void*) cur->data, LPM_DATA_SIZE, ?chs);
-		//@ assert all_eq(chs, 0) == true;
-		/*@ switch(unalloced_node()) {
-			case node(lc, m, p, v, rc):
-				assert valid_mem_indexes(0, 0, 0, 0, 0, m, lc, rc) == true;
-				//close foreach(p, is_bit);
-				assert are_bits(p) == true;
-				assert valid_data(chs, p, p) == true;
-			case empty:
-		    }
-		@*/
-		//@ close node_p_2(node_mem_blocks + (max_entries-1-i)*sizeof(struct lpm_trie_node), max_entries, unalloced_node());
-		//@ close nodes_p_2(node_mem_blocks + (max_entries-1-i)*sizeof(struct lpm_trie_node), i+1, max_entries, cons(unalloced_node, n2s));
+		//@ close node_p(node_mem_blocks + (max_entries-1-i)*sizeof(struct lpm_trie_node), max_entries);
+		//@ close nodes_p(node_mem_blocks + (max_entries-1-i)*sizeof(struct lpm_trie_node), i+1, max_entries);
 	}
 	//@ open nodes_im_p(node_mem_blocks, max_entries-max_entries);
-	free(empty_data);
-	return 0;
 }
 
 struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 /*@ requires max_entries > 0 &*& max_entries <= IRANG_LIMIT &*&
              sizeof(struct lpm_trie_node) < MAX_NODE_SIZE; @*/
-/*@ ensures result == NULL ? true : trie_p_2(result, empty_trie(max_entries)); @*/
+/*@ ensures result == NULL ? true : trie_p(result, 0, max_entries); @*/
 {
 	if(max_entries == 0 ||
 	   max_entries > TRIE_SIZE_MAX / sizeof(struct lpm_trie_node))
@@ -155,51 +71,39 @@ struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 		return NULL;
 	}
 
-	trie->node_mem_blocks = node_mem_blocks;
-	//@ bytes_to_nodes_im(node_mem_blocks, nat_of_int(max_entries));
-	//@ assert nodes_im_p(node_mem_blocks, max_entries);
-	int res = init_nodes_mem(node_mem_blocks, max_entries);
-	if(res){
-		//@ nodes_im_to_bytes(node_mem_blocks, nat_of_int(max_entries));
-		free(node_mem_blocks);
-		free(trie);
-		return NULL;
-	}
-	//@ assert nodes_p_2(node_mem_blocks, max_entries, max_entries, ?ns);
-	//@ assert all_eq(ns, unalloced_node()) == true;
-
 	//Allocate the double-chain allocator
-	res = dchain_allocate(max_int, &trie->dchain);
+	int res = dchain_allocate(max_int, &trie->dchain);
 	if(!res){
-		//@ nodes_to_bytes_2(node_mem_blocks, nat_of_int(max_entries));
 		free(node_mem_blocks);
 		free(trie);
 		return NULL;
 	}
 
-	trie->root = INVALID_NODE_ID;
+	//trie->root = NULL;
 	trie->n_entries = 0;
 	trie->max_entries = max_entries;
+	trie->node_mem_blocks = node_mem_blocks;
 	//@ assert trie->max_entries |-> ?max;
 	//@ assert trie->dchain |-> ?dchain;
 	//@ assert double_chainp(?ch, dchain);
 	//@ assert dchain_index_range_fp(ch) == max;
 	//@ assert dchain_high_fp(ch) == 0;
 
-	//@ close trie_p_2(trie, empty_trie(max_entries));
+	//@ bytes_to_nodes_im(node_mem_blocks, nat_of_int(max_entries));
+	//@ assert nodes_im_p(node_mem_blocks, max_entries);
+	init_nodes_mem(node_mem_blocks, max_entries);
+
+	//@ close trie_p(trie, 0, max_entries);
+
 	return trie;
 }
 
 int lpm_trie_node_alloc(struct lpm_trie *trie, int value)
-/*@ requires trie_p_2(trie, ?t); @*/
-/*@ ensures trie_p_2(trie, t) &*&
-            (result == INVALID_NODE_ID ? true : switch(t){
-            	case trie(tr, tn, tm): return result >= 0 &*& result < tm;
-            }); @*/
+/*@ requires trie_p(trie, ?n, ?max_i); @*/
+/*@ ensures trie_p(trie, n, max_i) &*&
+            (result == INVALID_NODE_ID ? true : result >= 0 &*& result < max_i); @*/
 {
-	//@ open trie_p_2(trie, t);
-	struct lpm_trie_node *node_mem_blocks = trie->node_mem_blocks;
-	int max_i = (int) trie->max_entries;
+	//@ open trie_p(trie, n, max_i);
 	int index;
 	//@ assert trie->dchain |-> ?dchain;
 	//@ assert double_chainp(?ch, dchain);
@@ -207,76 +111,24 @@ int lpm_trie_node_alloc(struct lpm_trie *trie, int value)
 	//@ allocate_preserves_index_range(ch, index, 1);
 	//@ allocate_keeps_high_bounded(ch, index, 1);
 	if(!res){
-		//@ close trie_p_2(trie, t);
+		//@ close trie_p(trie, n, max_i);
 		return INVALID_NODE_ID;
 	}
 
 	//Allocate next index to the new node
-	//@ assert 0 <= index;
-	//@ assert index < max_i;
-	//@ mul_mono_strict(index, max_i, sizeof(struct lpm_trie_node));
+	struct lpm_trie_node *node = trie->node_mem_blocks + index;
+	//@ extract_node(trie->node_mem_blocks, index);
+	//@ open node_p(node, max_i);
 
-	struct lpm_trie_node *node = node_mem_blocks + index;
-	//@ assert nodes_p_2(node_mem_blocks, ?length, max_i, ?ns);
-	//@ assert length == length(ns);
-	//@ extract_node_2(node_mem_blocks, index, ns);
-
-	//@ assert node_p_2(node, max_i, ?n);
-	//@ open node_p_2(node, max_i, n);
-	if(value == INVALID_VAL) {
-		//This allows to allocate intermediary nodes by giving a NULL value
-		node->flags = 1;
-	} else {
-		node->flags = 0;
-	}
-
-	int l_child = node->l_child;
-	int r_child = node->r_child;
-	int has_l = node->has_l_child;
-	int has_r = node->has_r_child;
-	int mem_index = node->mem_index;
-
+	node->flags = 0;
 	node->value = value;
+	//node->l_child = NULL;
+	//node->r_child = NULL;
 	node->mem_index = index;
-	node->has_l_child = 0;
-	node->has_r_child = 0;
 
-	int i = index;
-	int r = trie->root;
-	int n_entries = (int) trie->n_entries;
-	/*@
-		switch(n) {
-			case node(lc, m, p, v, rc):
-				if(value == INVALID_VAL) {
-					assert valid_mem_indexes(l_child, r_child, mem_index, has_l, has_r, m, lc, rc) == true;
-					//open valid_mem_indexes(l_child, r_child, mem_index, has_l, has_r, m, lc, rc);
-					assert valid_mem_indexes(l_child, r_child, i, 0, 0, i, empty, empty) == true;
-					close node_p_2(node, max_i, node(empty, i, p, none, empty));
-					assert nodes_p_2(node_mem_blocks, i, max_i, take(i, ns));
-					assert nodes_p_2(node_mem_blocks+i+1, length(ns)-i-1, max_i, drop(i+1, ns));
-					take_update_unrelevant(i, i, node(empty, i, p, none, empty), ns);
-					drop_update_unrelevant(i+1, i, node(empty, i, p, none, empty), ns);
-					close_nodes_2(node_mem_blocks, i, update(i, node(empty, i, p, none, empty), ns));
-					close trie_p_2(trie, t);
-				} else {
-					assert valid_mem_indexes(l_child, r_child, mem_index, has_l, has_r, m, lc, rc) == true;
-					//open valid_mem_indexes(l_child, r_child, mem_index, has_l, has_r, m, lc, rc);
-					assert valid_mem_indexes(l_child, r_child, i, 0, 0, i, empty, empty) == true;
-					close node_p_2(node, max_i, node(empty, i, p, some(value), empty));
-					assert nodes_p_2(node_mem_blocks, i, max_i, take(i, ns));
-					assert nodes_p_2(node_mem_blocks+i+1, length(ns)-i-1, max_i, drop(i+1, ns));
-					take_update_unrelevant(i, i, node(empty, i, p, some(value), empty), ns);
-					drop_update_unrelevant(i+1, i, node(empty, i, p, some(value), empty), ns);
-					close_nodes_2(node_mem_blocks, i, update(i, node(empty, i, p, some(value), empty), ns));
-					close trie_p_2(trie, t);
-				}
-			case empty:
-		}
-	@*/
-
-	/* //@ close node_p(node, max_i);
+	//@ close node_p(node, max_i);
 	//@ close_nodes(trie->node_mem_blocks, index, trie->max_entries);
-	//@ close trie_p(trie, n, max_i); */
+	//@ close trie_p(trie, n, max_i);
 	return index;
 }
 
@@ -329,137 +181,74 @@ bool extract_bit(const uint8_t *data, size_t index)
 	//@ uchars_join(data);
 }
 
-/*@
-	lemma void open_valid_data(list<unsigned char> chs, list<int> ps);
-	requires valid_data(chs, ps, ps) == true;
-	ensures valid_data_single(head(chs), take(CHAR_IN_BITS, ps), take(CHAR_IN_BITS, ps)) == true &*&
-	        valid_data(tail(chs), drop(CHAR_IN_BITS, ps), drop(CHAR_IN_BITS, ps)) == true;
-
-	lemma void close_valid_data(list<unsigned char> chs, list<int> ps);
-	requires valid_data_single(head(chs), take(CHAR_IN_BITS, ps), take(CHAR_IN_BITS, ps)) == true &*&
-	         valid_data(tail(chs), drop(CHAR_IN_BITS, ps), drop(CHAR_IN_BITS, ps)) == true;
-	ensures valid_data(chs, ps, ps) == true;
-
-	lemma void join_valid_data(list<unsigned char> chs0, list<unsigned char> chs1, list<int> ps, int i);
-	requires valid_data(chs0, drop(i*CHAR_IN_BITS, ps), drop(i*CHAR_IN_BITS, ps)) == true &*&
-	         valid_data(chs1, take(i*CHAR_IN_BITS, ps), take(i*CHAR_IN_BITS, ps)) == true;
-	ensures valid_data(append(chs1, chs0), ps, ps) == true;
-
-	lemma void tail_valid_data(list<char> chs, list<int> ints, int i);
-	requires valid_data(chs, drop(i*CHAR_IN_BITS, ints), drop(i*CHAR_IN_BITS, ints)) == true;
-	ensures valid_data(tail(chs), drop((i+1)*CHAR_IN_BITS, ints), drop((i+1)*CHAR_IN_BITS, ints)) == true;
-
-	lemma void take_drop_drop_take<t>(int i, int n, list<t> lst);
-	requires i >= 0 &*& n >= 0;
-	ensures take(n, drop(i*n, lst)) == drop(i*n, take((i+1)*n, lst));
-@*/
-
 size_t longest_prefix_match(const struct lpm_trie_node *node,
                             const struct lpm_trie_key *key)
-/*@ requires node_p_2(node, ?max_i, ?n) &*& key_p_2(key, ?p); @*/
-/*@ ensures node_p_2(node, max_i, n) &*& key_p_2(key, p); @*/
+/*@ requires node_p(node, ?max_i) &*& key_p(key); @*/
+/*@ ensures node_p(node, max_i) &*& key_p(key); @*/
 {
 	size_t prefixlen = 0;
+	uint32_t last_set = 0;
 	size_t i;
 
-	//@ open node_p_2(node, max_i, n);
-	//@ open key_p_2(key, p);
-	uint32_t node_plen = node->prefixlen;
-	uint32_t key_plen = key->prefixlen;
-	//@ close node_p_2(node, max_i, n);
-	//@ close key_p_2(key, p);
-
-	//@ open node_p_2(node, max_i, n);
-	//@ open key_p_2(key, p);
-	//@ open uchars(node->data, LPM_DATA_SIZE, ?nchs);
-	//@ assert valid_data(nchs, node_prefix_fp(n), node_prefix_fp(n)) == true;
-	//@ open uchars(key->data, LPM_DATA_SIZE, ?kchs);
-	//@ assert valid_data(kchs, p, p) == true;
+	//@ open node_p(node, max_i);
+	//@ open key_p(key);
+	//@ open uchars(node->data, LPM_DATA_SIZE, _);
+	//@ open uchars(key->data, LPM_DATA_SIZE, _);
 	for (i = 0; i < LPM_DATA_SIZE; i++)
-	/*@ invariant node->prefixlen |-> node_plen &*& key->prefixlen |-> key_plen &*&
-	              uchars((void*) node->data + i, LPM_DATA_SIZE - i, ?nchs0) &*&
-	              uchars(node->data, i, ?nchs1) &*&
-	              valid_data(nchs0, drop(i*CHAR_IN_BITS, node_prefix_fp(n)), drop(i*CHAR_IN_BITS, node_prefix_fp(n))) == true &*&
-	              valid_data(nchs1, take(i*CHAR_IN_BITS, node_prefix_fp(n)), take(i*CHAR_IN_BITS, node_prefix_fp(n))) == true &*&
-	              uchars((void*) key->data + i, LPM_DATA_SIZE - i, ?kchs0) &*&
-	              uchars(key->data, i, ?kchs1) &*&
-	              valid_data(kchs0, drop(i*CHAR_IN_BITS, p), drop(i*CHAR_IN_BITS, p)) == true &*&
-	              valid_data(kchs1, take(i*CHAR_IN_BITS, p), take(i*CHAR_IN_BITS, p)) == true; @*/
+	/*@ invariant node->prefixlen |-> _ &*& key->prefixlen |-> _ &*&
+	              uchars((void*) node->data + i, LPM_DATA_SIZE - i, _) &*&
+	              uchars(node->data, i, _) &*&
+	              uchars((void*) key->data + i, LPM_DATA_SIZE - i, _) &*&
+	              uchars(key->data, i, _) &*& prefixlen <= 8*i; @*/
 	{
 		size_t b;
 
-		//@ open uchars((void*) node->data + i, LPM_DATA_SIZE - i, nchs0);
-		//@ open uchars((void*) key->data + i, LPM_DATA_SIZE - i, kchs0);
+		//@ open uchars((void*) node->data + i, LPM_DATA_SIZE - i, _);
+		//@ open uchars((void*) key->data + i, LPM_DATA_SIZE - i, _);
 		//@ u_character_limits(&node->data[i]);
 		//@ u_character_limits(&key->data[i]);
 		//@ bitxor_limits(node->data[i], key->data[i], nat_of_int(8));
-		//@ assert u_character((void*) node->data + i, head(nchs0));
-		//@ open_valid_data(nchs0, drop(i*CHAR_IN_BITS, node_prefix_fp(n)));
-		/*@ assert valid_data_single(head(nchs0), take(CHAR_IN_BITS, drop(i*CHAR_IN_BITS, node_prefix_fp(n))),
-		                             take(CHAR_IN_BITS, drop(i*CHAR_IN_BITS, node_prefix_fp(n)))) == true; @*/
-		//@ assert u_character((void*) key->data + i, head(kchs0));
-		//@ open_valid_data(kchs0, drop(i*CHAR_IN_BITS, p));
-		/*@ assert valid_data_single(head(kchs0), take(CHAR_IN_BITS, drop(i*CHAR_IN_BITS, p)),
-		                             take(CHAR_IN_BITS, drop(i*CHAR_IN_BITS, p))) == true; @*/
 		uint32_t nxk_i = (uint32_t) node->data[i] ^ key->data[i];
-		int last_set = fls(nxk_i);
-		//@ assume(0 <= last_set && last_set <= 8);//TODO
-		b = 8 - (uint32_t) last_set;
+		last_set = fls(nxk_i);
+		//TODO: add condition to last_set on 1 byte
+		if(last_set > 8) {
+			//@ close uchars((void*) node->data + i, LPM_DATA_SIZE - i, _);
+			//@ close uchars((void*) key->data + i, LPM_DATA_SIZE - i, _);
+			//@ uchars_join(node->data);
+			//@ uchars_join(key->data);
+			break;
+		}
+		b = 8 - last_set;
+		//@ assert prefixlen + b <= prefixlen + 8;
 		prefixlen += b;
 
-		if (prefixlen >= node_plen || prefixlen >= key_plen){
-			//@ close uchars((void*) node->data + i, LPM_DATA_SIZE - i, nchs0);
-			//@ close_valid_data(nchs0, drop(i*CHAR_IN_BITS, node_prefix_fp(n)));
-			//@ assert valid_data(nchs0, drop(i*CHAR_IN_BITS, node_prefix_fp(n)), drop(i*CHAR_IN_BITS, node_prefix_fp(n))) == true;
-			//@ close uchars((void*) key->data + i, LPM_DATA_SIZE - i, kchs0);
-			//@ close_valid_data(kchs0, drop(i*CHAR_IN_BITS, p));
-			//@ assert valid_data(kchs0, drop(i*CHAR_IN_BITS, p), drop(i*CHAR_IN_BITS, p)) == true;
+		if (prefixlen >= node->prefixlen || prefixlen >= key->prefixlen){
+			uint32_t node_plen = node->prefixlen;
+			uint32_t key_plen = key->prefixlen;
+			//@ close uchars((void*) node->data + i, LPM_DATA_SIZE - i, _);
+			//@ close uchars((void*) key->data + i, LPM_DATA_SIZE - i, _);
 			//@ uchars_join(node->data);
-			//@ join_valid_data(nchs0, nchs1, node_prefix_fp(n), i);
-			//@ assert valid_data(append(nchs1, nchs0), node_prefix_fp(n), node_prefix_fp(n)) == true;
 			//@ uchars_join(key->data);
-			//@ join_valid_data(kchs0, kchs1, p, i);
-			//@ assert valid_data(append(kchs1, kchs0), p, p) == true;
 			prefixlen = min(node_plen, key_plen);
 			break;
 		}
 
 		if (b < 8){
-			//@ close uchars((void*) node->data + i, LPM_DATA_SIZE - i, nchs0);
-			//@ close_valid_data(nchs0, drop(i*CHAR_IN_BITS, node_prefix_fp(n)));
-			//@ assert valid_data(nchs0, drop(i*CHAR_IN_BITS, node_prefix_fp(n)), drop(i*CHAR_IN_BITS, node_prefix_fp(n))) == true;
-			//@ close uchars((void*) key->data + i, LPM_DATA_SIZE - i, kchs0);
-			//@ close_valid_data(kchs0, drop(i*CHAR_IN_BITS, p));
-			//@ assert valid_data(kchs0, drop(i*CHAR_IN_BITS, p), drop(i*CHAR_IN_BITS, p)) == true;
+			//@ close uchars((void*) node->data + i, LPM_DATA_SIZE - i, _);
+			//@ close uchars((void*) key->data + i, LPM_DATA_SIZE - i, _);
 			//@ uchars_join(node->data);
-			//@ join_valid_data(nchs0, nchs1, node_prefix_fp(n), i);
-			//@ assert valid_data(append(nchs1, nchs0), node_prefix_fp(n), node_prefix_fp(n)) == true;
 			//@ uchars_join(key->data);
-			//@ join_valid_data(kchs0, kchs1, p, i);
-			//@ assert valid_data(append(kchs1, kchs0), p, p) == true;
 			break;
 		}
 
-		//@ close uchars((void*) node->data + i, 1, cons(head(nchs0), nil));
-		//@ take_take(CHAR_IN_BITS, CHAR_IN_BITS, drop(i*CHAR_IN_BITS, node_prefix_fp(n)));
-		//@ close_valid_data(cons(head(nchs0), nil), take(CHAR_IN_BITS, drop(i*CHAR_IN_BITS, node_prefix_fp(n))));
+		//@ close uchars((void*) node->data + i, 1, _);
 		//@ uchars_join(node->data);
-		//@ take_drop_drop_take(i, CHAR_IN_BITS, node_prefix_fp(n));
-		//@ take_take(i*CHAR_IN_BITS, (i+1)*CHAR_IN_BITS, node_prefix_fp(n));
-		//@ join_valid_data(cons(head(nchs0), nil), nchs1, take((i+1)*CHAR_IN_BITS, node_prefix_fp(n)), i);
-		//@ tail_valid_data(nchs0, node_prefix_fp(n), i);
-		//@ close uchars((void*) key->data + i, 1, cons(head(kchs0), nil));
-		//@ take_take(CHAR_IN_BITS, CHAR_IN_BITS, drop(i*CHAR_IN_BITS, p));
-		//@ close_valid_data(cons(head(kchs0), nil), take(CHAR_IN_BITS, drop(i*CHAR_IN_BITS, p)));
+		//@ close uchars((void*) key->data + i, 1, _);
 		//@ uchars_join(key->data);
-		//@ take_drop_drop_take(i, CHAR_IN_BITS, p);
-		//@ take_take(i*CHAR_IN_BITS, (i+1)*CHAR_IN_BITS, p);
-		//@ join_valid_data(cons(head(kchs0), nil), kchs1, take((i+1)*CHAR_IN_BITS, p), i);
-		//@ tail_valid_data(kchs0, p, i);
 	}
 
-	//@ close node_p_2(node, max_i, n);
-	//@ close key_p_2(key, p);
+	//@ close node_p(node, max_i);
+	//@ close key_p(key);
 	return prefixlen;
 }
 
@@ -577,7 +366,7 @@ int trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 }
 
 int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int value)
-/*@ requires trie_p(trie, _, ?max_i) &*&
+/*@ requires trie_p(trie, ?n1, ?max_i) &*& n1 < max_i &*&
              key_p(key); @*/
 /*@ ensures trie_p(trie, _, max_i) &*&
             key_p(key); @*/
@@ -606,16 +395,16 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int value)
 		return -1;
 	}
 
-	//@ open trie_p(trie, _, max_i);
+	//@ open trie_p(trie, n1, max_i);
 	/* Allocate and fill a new node */
 	if (trie->n_entries == trie->max_entries) {
 		ret = -1;
 		//@ close key_p(key);
-		//@ close trie_p(trie, _, max_i);
+		//@ close trie_p(trie, n1, max_i);
 		goto out;
 	}
 
-	//@ close trie_p(trie, _, max_i);
+	//@ close trie_p(trie, n1, max_i);
 	new_node_id = lpm_trie_node_alloc(trie, value);
 	if (new_node_id == INVALID_NODE_ID) {
 		ret = -1;
@@ -623,7 +412,7 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int value)
 		goto out;
 	}
 
-	//@ open trie_p(trie, _, max_i);
+	//@ open trie_p(trie, n1, max_i);
 	struct lpm_trie_node *node_base = trie->node_mem_blocks;
 	new_node = node_base + new_node_id;
 	//@ extract_node(node_base, new_node_id);
@@ -638,7 +427,7 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int value)
 		trie->root = new_node->mem_index;
 		//@ close node_p(new_node, max_i);
 		//@ close_nodes(node_base, new_node_id, max_i);
-		//@ close trie_p(trie, _, max_i);
+		//@ close trie_p(trie, 1, max_i);
 		//@ close key_p(key);
 		goto out;
 	}
@@ -740,7 +529,7 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int value)
 		}
 		//@ close node_p(parent, max_i);
 		//@ close_nodes(node_base, old_id, max_i);
-		//@ close trie_p(trie, _, max_i);
+		//@ close trie_p(trie, n1+1, max_i);
 		goto out;
 	}
 
@@ -844,7 +633,7 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int value)
 			//@ close node_p(parent, max_i);
 			//@ close_nodes(node_base, old_id, max_i);
 		}
-		//@ close trie_p(trie, _, max_i);
+		//@ close trie_p(trie, n1+1, max_i);
 		//@ close key_p(key);
 
 		goto out;
@@ -852,7 +641,7 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int value)
 
 	//@ close node_p(node, max_i);
 	//@ close_nodes(node_base, node_id, max_i);
-	//@ close trie_p(trie, _, max_i);
+	//@ close trie_p(trie, n1+1, max_i);
 	im_node_id = lpm_trie_node_alloc(trie, NULL);
 	if (im_node_id == INVALID_NODE_ID) {
 		ret = -1;
@@ -860,7 +649,7 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int value)
 		goto out;
 	}
 
-	//@ open trie_p(trie, _, max_i);
+	//@ open trie_p(trie, n1+1, max_i);
 	node_base = trie->node_mem_blocks;
 	node = node_base + node_id;
 	im_node = node_base + im_node_id;
@@ -871,7 +660,7 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int value)
 		ret = -1;
 		//@ close node_p(node, max_i);
 		//@ close_nodes(node_base, node_id, max_i);
-		//@ close trie_p(trie, _, max_i);
+		//@ close trie_p(trie, n1+1, max_i);
 		//@ close key_p(key);
 		goto out;
 	}
@@ -881,6 +670,7 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int value)
 	//@ extract_node(node_base, im_node_id);
 	//@ open node_p(im_node, max_i);
 	im_node->prefixlen = matchlen;
+	//@ bitor_limits(im_node->flags, LPM_TREE_NODE_FLAG_IM, nat_of_int(32));
 	im_node->flags |= LPM_TREE_NODE_FLAG_IM;
 	memcpy(im_node->data, node_data, LPM_DATA_SIZE);
 	free(node_data);
@@ -934,7 +724,7 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int value)
 		//@ close node_p(parent, max_i);
 		//@ close_nodes(node_base, old_id, max_i);
 	}
-	//@ close trie_p(trie, _, max_i);
+	//@ close trie_p(trie, n1+1, max_i);
 
 out:
 	//@ assert trie_p(trie, _, max_i);
@@ -1086,6 +876,7 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	 * as intermediate and we are done.
 	 */
 	if (node->has_l_child && node->has_r_child) {
+		//@ bitor_limits(node->flags, LPM_TREE_NODE_FLAG_IM, nat_of_int(32));
 		node->flags |= LPM_TREE_NODE_FLAG_IM;
 		//@ close node_p(node, max_i);
 		//@ close_nodes(node_base, node_id, max_i);
