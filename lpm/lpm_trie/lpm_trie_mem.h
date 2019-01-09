@@ -157,6 +157,14 @@ struct lpm_trie_key {
 	requires chars((void*)node, int_of_nat(len)*sizeof(struct lpm_trie_node), ?chs);
 	ensures nodes_im_p(node, int_of_nat(len));
 
+	lemma void node_im_to_bytes(struct lpm_trie_node *node);
+	requires node_im_p(node);
+	ensures chars((void*) node, sizeof(struct lpm_trie_node), ?chs);
+
+	lemma void nodes_im_to_bytes(struct lpm_trie_node *first, nat len);
+	requires nodes_im_p(first, int_of_nat(len));
+	ensures chars((void*) first, int_of_nat(len)*sizeof(struct lpm_trie_node), ?chs);
+
 	lemma void node_to_bytes(struct lpm_trie_node *node);
 	requires node_p(node, ?max_i);
 	ensures chars((void*) node, sizeof(struct lpm_trie_node), ?cs);

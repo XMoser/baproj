@@ -64,6 +64,66 @@ ensures nodes_im_p(node, int_of_nat(len));
     }
 }
 
+lemma void node_im_to_bytes(struct lpm_trie_node *node)
+requires node_im_p(node);
+ensures chars((void*) node, sizeof(struct lpm_trie_node), ?chs);
+{
+	void *_node = node;
+	node_layout_assumptions(node);
+	open node_im_p(node);
+	open lpm_trie_node_l_child(node, _);
+	integer_to_chars((void*) &node->l_child);
+	open lpm_trie_node_r_child(node, _);
+	integer_to_chars((void*) &node->r_child);
+	chars_join(_node);
+	open lpm_trie_node_mem_index(node, _);
+	integer_to_chars((void*) &node->mem_index);
+	chars_join(_node);
+	open lpm_trie_node_has_l_child(node, _);
+	integer_to_chars((void*) &node->has_l_child);
+	chars_join(_node);
+	open lpm_trie_node_has_r_child(node, _);
+	integer_to_chars((void*) &node->has_r_child);
+	chars_join(_node);
+	open lpm_trie_node_prefixlen(node, _);
+	u_integer_to_chars((void*) &node->prefixlen);
+	chars_join(_node);
+	open lpm_trie_node_flags(node, _);
+	u_integer_to_chars((void*) &node->flags);
+	chars_join(_node);
+	open lpm_trie_node_value(node, _);
+	integer_to_chars((void*) &node->value);
+	chars_join(_node);
+	uchars_to_chars((void*) node->data);
+	chars_join(_node);
+}
+
+lemma void nodes_im_to_bytes(struct lpm_trie_node *first, nat len)
+requires nodes_im_p(first, int_of_nat(len));
+ensures chars((void*) first, int_of_nat(len)*sizeof(struct lpm_trie_node), ?chs);
+{
+	switch(len) {
+		case zero:
+			open nodes_im_p(first, int_of_nat(len));
+			close chars((void*) first, 0, _);
+			break;
+		case succ(n):
+			assert 1 <= int_of_nat(len);
+			mul_mono(1, int_of_nat(len), sizeof(struct lpm_trie_node));
+			assert sizeof(struct lpm_trie_node) <= int_of_nat(len)*sizeof(struct lpm_trie_node);
+			open nodes_im_p(first, int_of_nat(len));
+			assert int_of_nat(len)*sizeof(struct lpm_trie_node) - sizeof(struct lpm_trie_node) ==
+			       (int_of_nat(len)-1)*sizeof(struct lpm_trie_node);
+			assert int_of_nat(len)-1 == int_of_nat(n);
+			mul_subst(int_of_nat(len)-1, int_of_nat(n), sizeof(struct lpm_trie_node));
+			assert int_of_nat(len)*sizeof(struct lpm_trie_node) - sizeof(struct lpm_trie_node) ==
+			       int_of_nat(n)*sizeof(struct lpm_trie_node);
+			nodes_im_to_bytes(first + 1, n);
+			node_im_to_bytes(first);
+			chars_join((void*) first);
+	}
+}
+
 lemma void node_to_bytes(struct lpm_trie_node *node)
 requires node_p(node, ?max_i);
 ensures chars((void*) node, sizeof(struct lpm_trie_node), ?cs);

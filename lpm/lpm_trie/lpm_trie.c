@@ -10,19 +10,27 @@
 //@ #include "arith.gh"
 //@ #include <nat.gh>
 
-void init_nodes_mem(const void *node_mem_blocks, size_t max_entries)
+int init_nodes_mem(const void *node_mem_blocks, size_t max_entries)
 /*@ requires max_entries > 0 &*& nodes_im_p(node_mem_blocks, max_entries) &*&
              max_entries <= IRANG_LIMIT &*&
              (void*)0 < ((void*)(node_mem_blocks)) &*&
              (void*)((struct lpm_trie_node*)node_mem_blocks + max_entries) <= (char*)UINTPTR_MAX;@*/
-/*@ ensures nodes_p(node_mem_blocks, max_entries, max_entries); @*/
+/*@ ensures (result == 0 ? nodes_p(node_mem_blocks, max_entries, max_entries) :
+                           nodes_im_p(node_mem_blocks, max_entries)); @*/
 {
 	struct lpm_trie_node *cur;
+	uint8_t *empty_data = malloc(sizeof(uint8_t) * LPM_DATA_SIZE);
+	if(!empty_data) {
+		return -1;
+	}
+	memset(empty_data, 0, LPM_DATA_SIZE);
+
 	for(size_t i = 0; i < max_entries; i++)
 	/*@ invariant (i < max_entries ? i >= 0 : i == max_entries) &*&
 	              max_entries <= IRANG_LIMIT &*&
 	              (void*)0 < ((void*)(node_mem_blocks)) &*&
 	              (void*)((struct lpm_trie_node*)node_mem_blocks + max_entries) <= (char*)UINTPTR_MAX &*&
+	              uchars((void*) empty_data, LPM_DATA_SIZE, _) &*&
 	              (i == 0 ? true :
 	               nodes_p(node_mem_blocks + (max_entries-i)*sizeof(struct lpm_trie_node), i, max_entries)) &*&
 	              nodes_im_p(node_mem_blocks, max_entries - i);@*/
@@ -43,10 +51,16 @@ void init_nodes_mem(const void *node_mem_blocks, size_t max_entries)
 		cur->mem_index = 0;
 		cur->has_l_child = 0;
 		cur->has_r_child = 0;
+		cur->prefixlen = 0;
+		cur->value = 0;
+		cur->flags = 1;
+		memcpy(cur->data, empty_data, LPM_DATA_SIZE);
 		//@ close node_p(node_mem_blocks + (max_entries-1-i)*sizeof(struct lpm_trie_node), max_entries);
 		//@ close nodes_p(node_mem_blocks + (max_entries-1-i)*sizeof(struct lpm_trie_node), i+1, max_entries);
 	}
 	//@ open nodes_im_p(node_mem_blocks, max_entries-max_entries);
+	free(empty_data);
+	return 0;
 }
 
 struct lpm_trie *lpm_trie_alloc(size_t max_entries)
@@ -71,30 +85,37 @@ struct lpm_trie *lpm_trie_alloc(size_t max_entries)
 		return NULL;
 	}
 
+	trie->node_mem_blocks = node_mem_blocks;
+	//@ bytes_to_nodes_im(node_mem_blocks, nat_of_int(max_entries));
+	//@ assert nodes_im_p(node_mem_blocks, max_entries);
+	int res = init_nodes_mem(node_mem_blocks, max_entries);
+	if(res){
+		//@ nodes_im_to_bytes(node_mem_blocks, nat_of_int(max_entries));
+		free(node_mem_blocks);
+		free(trie);
+		return NULL;
+	}
+	//@ assert nodes_p(node_mem_blocks, max_entries, max_entries);
+
 	//Allocate the double-chain allocator
-	int res = dchain_allocate(max_int, &trie->dchain);
+	res = dchain_allocate(max_int, &trie->dchain);
 	if(!res){
+		//@ nodes_to_bytes(node_mem_blocks, nat_of_int(max_entries));
 		free(node_mem_blocks);
 		free(trie);
 		return NULL;
 	}
 
-	//trie->root = NULL;
+	trie->root = INVALID_NODE_ID;
 	trie->n_entries = 0;
 	trie->max_entries = max_entries;
-	trie->node_mem_blocks = node_mem_blocks;
 	//@ assert trie->max_entries |-> ?max;
 	//@ assert trie->dchain |-> ?dchain;
 	//@ assert double_chainp(?ch, dchain);
 	//@ assert dchain_index_range_fp(ch) == max;
 	//@ assert dchain_high_fp(ch) == 0;
 
-	//@ bytes_to_nodes_im(node_mem_blocks, nat_of_int(max_entries));
-	//@ assert nodes_im_p(node_mem_blocks, max_entries);
-	init_nodes_mem(node_mem_blocks, max_entries);
-
 	//@ close trie_p(trie, 0, max_entries);
-
 	return trie;
 }
 
@@ -120,11 +141,16 @@ int lpm_trie_node_alloc(struct lpm_trie *trie, int value)
 	//@ extract_node(trie->node_mem_blocks, index);
 	//@ open node_p(node, max_i);
 
-	node->flags = 0;
+	if(value == INVALID_VAL) {
+		node->flags = 1;
+	} else {
+		node->flags = 0;
+	}
+
 	node->value = value;
-	//node->l_child = NULL;
-	//node->r_child = NULL;
 	node->mem_index = index;
+	node->has_l_child = 0;
+	node->has_r_child = 0;
 
 	//@ close node_p(node, max_i);
 	//@ close_nodes(trie->node_mem_blocks, index, trie->max_entries);
