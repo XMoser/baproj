@@ -201,7 +201,7 @@ struct lpm_trie_key {
 @*/
 
 /*@
-	fixpoint int next_index(trie_t trie);
+	fixpoint int next_index(trie_t trie); //TODO
 
 	fixpoint int match_length_aux(list<int> p1, list<int> p2, int acc){
 		switch(p1) {
@@ -221,7 +221,7 @@ struct lpm_trie_key {
 				return match_length_aux(np, p, 0);
 		}
 	}
-	
+
 	fixpoint list<int> make_im_prefix_aux(list<int> p, nat ml){
 		switch(ml) {
 			case zero: return nil;
@@ -231,7 +231,7 @@ struct lpm_trie_key {
 			};
 		}
 	}
-	
+
 	fixpoint list<int> make_im_prefix(list<int> p1, list<int> p2){
 		return make_im_prefix_aux(p1, nat_of_int(match_length_aux(p1, p2, 0)));
 	}
@@ -338,6 +338,129 @@ struct lpm_trie_key {
 			case trie(root, n, m): return
 				trie(lpm_trie_update_nodes(trie, root, node(empty, next_index(trie), p, v, empty)),
 				     lpm_trie_update_size(trie, p), m);
+		}
+	}
+
+	fixpoint bool is_im_node(node_t node) {
+		switch(node) {
+			case empty: return false;
+			case node(lc, m, p, v, rc): return
+				switch(v) {
+					case none: return true;
+					case some(x): return false;
+				};
+		}
+	}
+
+	fixpoint bool is_left_child(node_t par, node_t node) {
+		switch(par) {
+			case empty: return false;
+			case node(p_lc, pm, pp, pv, p_rc): return p_lc == node;
+		}
+	}
+
+	fixpoint node_t remove_node(node_t par, node_t rem) {
+		switch(rem) {
+			case empty: return par;
+			case node(rem_lc, remm, remp, remv, rem_rc): return
+				switch(rem_lc){
+					case empty: return
+						switch(rem_rc) {
+							case empty: return
+								//no children
+								(is_im_node(par) ?
+									//check for sibling, return it if it exists
+									switch(par) {
+										case empty: return empty;
+										case node(p_lc, pm, pp, pv, p_rc): return
+											(is_left_child(par, rem) ? p_rc : p_lc);
+									} :
+									//remove rem
+									switch(par) {
+										case empty: return empty;
+										case node(p_lc, pm, pp, pv, p_rc): return
+											(is_left_child(par, rem) ?
+												node(empty, pm, pp, pv, p_rc) :
+												node(p_lc, pm, pp, pv, empty)
+											);
+									}
+								);
+
+							case node(rem_rlc, rem_rm, rem_rp, rem_rv, rem_rrc): return
+								//one child, to the right
+								switch(par) {
+									case empty: return empty;
+									case node(p_lc, pm, pp, pv, p_rc): return
+										//replace rem with rem_rc
+										(is_left_child(par, rem) ?
+											node(rem_rc, pm, pp, pv, p_rc) :
+											node(p_lc, pm, pp, pv, rem_rc)
+										);
+								};
+						};
+
+					case node(rem_llc, rem_lm, rem_lp, rem_lv, rem_lrc): return
+						switch(rem_rc) {
+							case empty: return
+								//one child, to the left
+								switch(par) {
+									case empty: return empty;
+									case node(p_lc, pm, pp, pv, p_rc): return
+										//replace rem with rem_lc
+										(is_left_child(par, rem) ?
+											node(rem_lc, pm, pp, pv, p_rc) :
+											node(p_lc, pm, pp, pv, rem_lc)
+										);
+								};
+							case node(rem_rlc, rem_rm, rem_rp, rem_rv, rem_rrc): return
+								//two children -> mark rem as intermediary node
+								switch(par) {
+									case empty: return empty;
+									case node(p_lc, pm, pp, pv, p_rc): return
+									(is_left_child(par, rem) ?
+										node(node(rem_lc, remm, remp, none, rem_rc), pm, pp, pv, p_rc) :
+										node(p_lc, pm, pp, pv, node(rem_lc, remm, remp, none, rem_rc))
+
+									);
+								};
+						};
+				};
+		}
+	}
+
+	fixpoint node_t lpm_trie_delete_nodes(node_t par, list<int> p) {
+		switch(par) {
+			case empty: return empty;
+			case node(p_lc, pm, pp, pv, p_rc): return
+				(nth(length(pp), p) == 0 ?
+					//check prefix match with left child
+					switch(p_lc) {
+						case empty: return par;
+						case node(l_lc, lm, lp, lv, l_rc): return
+							(match_length(p_lc, p) < length(p) ?
+								node(lpm_trie_delete_nodes(p_lc, p), pm, pp, pv, p_rc) :
+								//remove left child
+								remove_node(par, p_lc)
+							);
+					} :
+					//check prefix match with right child;
+					switch(p_rc) {
+						case empty: return par;
+						case node(r_lc, rm, rp, rv, r_rc): return
+							(match_length(p_rc, p) < length(p) ?
+								node(p_lc, pm, pp, pv, lpm_trie_delete_nodes(p_rc, p)) :
+								//remove right child
+								remove_node(par, p_rc)
+							);
+					}
+				);
+		}
+	}
+
+	fixpoint trie_t lpm_trie_delete(trie_t trie, list<int> p){
+		switch(trie) {
+			case trie(root, n, m):
+				return trie(lpm_trie_delete_nodes(node(root, 0, nil, none, empty), p), n-1, m);
 		}
 	}
 @*/
