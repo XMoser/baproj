@@ -125,7 +125,7 @@ ensures chars((void*) first, int_of_nat(len)*sizeof(struct lpm_trie_node), ?chs)
 }
 
 lemma void node_to_bytes(struct lpm_trie_node *node)
-requires node_p(node, ?max_i);
+requires node_p(node, ?max_i, ?n);
 ensures chars((void*) node, sizeof(struct lpm_trie_node), ?cs);
 {
     void *_node = node;
@@ -159,19 +159,19 @@ ensures chars((void*) node, sizeof(struct lpm_trie_node), ?cs);
 }
 
 lemma void nodes_to_bytes(struct lpm_trie_node *first, nat len)
-requires nodes_p(first, int_of_nat(len), ?max_i);
+requires nodes_p(first, int_of_nat(len), ?max_i, ?ns);
 ensures chars((void*) first, int_of_nat(len)*sizeof(struct lpm_trie_node), ?cs);
 {
     switch(len) {
         case zero:
-            open nodes_p(first, int_of_nat(len), max_i);
+            open nodes_p(first, int_of_nat(len), max_i, ns);
             close chars((void*) first, 0, _);
             break;
         case succ(n):
             assert 1 <= int_of_nat(len);
             mul_mono(1, int_of_nat(len), sizeof(struct lpm_trie_node));
             assert sizeof(struct lpm_trie_node) <= int_of_nat(len)*sizeof(struct lpm_trie_node);
-            open nodes_p(first, int_of_nat(len), max_i);
+            open nodes_p(first, int_of_nat(len), max_i, ns);
             assert int_of_nat(len)*sizeof(struct lpm_trie_node) - sizeof(struct lpm_trie_node) ==
                    (int_of_nat(len)-1)*sizeof(struct lpm_trie_node);
             assert int_of_nat(len)-1 == int_of_nat(n);
@@ -187,17 +187,17 @@ ensures chars((void*) first, int_of_nat(len)*sizeof(struct lpm_trie_node), ?cs);
 }
 
 lemma void extract_node(struct lpm_trie_node *node, int i)
-requires nodes_p(node, ?size, ?max_i) &*& 0 <= i &*& i < size;
-ensures nodes_p(node, i, max_i) &*&
-        node_p(node+i, max_i) &*&
-        nodes_p(node+i+1, size-i-1, max_i);
+requires nodes_p(node, ?size, ?max_i, ?ns) &*& 0 <= i &*& i < size;
+ensures nodes_p(node, i, max_i, take(i, ns)) &*&
+        node_p(node+i, max_i, nth(i, ns)) &*&
+        nodes_p(node+i+1, size-i-1, max_i, drop(i+1, ns));
 {
-    open nodes_p(node, size, max_i);
+    open nodes_p(node, size, max_i, ns);
     if(i == 0){
     } else {
         extract_node(node+1, i-1);
     }
-    close nodes_p(node, i, max_i);
+    close nodes_p(node, i, max_i, ns);
 }
 
 lemma void extract_im_node(struct lpm_trie_node *node, int i)
@@ -214,26 +214,39 @@ ensures nodes_im_p(node, i) &*&
     close nodes_im_p(node, i);
 }
 
-lemma void nodes_join(struct lpm_trie_node *node);
-requires nodes_p(node, ?n, ?max_i) &*& nodes_p(node+n, ?n0, max_i);
-ensures nodes_p(node, n+n0, max_i);
+lemma void nodes_join(struct lpm_trie_node *node, list<node_mem_t> ns);
+requires nodes_p(node, ?n, ?max_i, take(n, ns)) &*& nodes_p(node+n, ?n0, max_i, drop(n, ns));
+ensures nodes_p(node, n+n0, max_i, ns);
 {
     assume(false); //TODO
 }
 
-lemma void close_nodes(struct lpm_trie_node *first, int i, int size)
+lemma void close_nodes(struct lpm_trie_node *first, int i, int size, list<node_mem_t> ns)
 requires size > i &*& i >= 0 &*&
-         nodes_p(first, i, ?max_i) &*&
-         node_p(first+i, max_i) &*&
-         nodes_p(first+i+1, size-i-1, max_i);
-ensures nodes_p(first, size, max_i);
+         nodes_p(first, i, ?max_i, take(i, ns)) &*&
+         node_p(first+i, max_i, nth(i, ns)) &*&
+         nodes_p(first+i+1, size-i-1, max_i, drop(i+1, ns));
+ensures nodes_p(first, size, max_i, ns);
 {
     if(i == 0){
-        open nodes_p(first, i, max_i);
-        close nodes_p(first, size, max_i);
+        open nodes_p(first, i, max_i, take(i, ns));
+        close nodes_p(first, size, max_i, take(i, ns));
     } else {
-        close nodes_p(first+i, size-i, max_i);
+        close nodes_p(first+i, size-i, max_i, drop(i, ns));
         nodes_join(first);
     }
+}
+
+lemma void close_nodes_update(struct lpm_trie_node *first, int i, int size,
+                              list<node_mem_t> ns, node_mem_t new)
+requires size > i &*& i >= 0 &*&
+         nodes_p(first, i, ?max_i, take(i, ns)) &*&
+         node_p(first+i, max_i, new) &*&
+         nodes_p(first+i+1, size-i-1, max_i, drop(i+1, ns));
+ensures nodes_p(first, size, max_i, update(i, new, ns));
+{
+    take_update_unrelevant(i, i, new, ns);
+    drop_update_unrelevant(i+1, i, new, ns);
+    close_nodes(node, i, update(i, new, ns));
 }
 @*/
