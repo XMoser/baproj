@@ -233,6 +233,60 @@ struct lpm_trie_key {
 		}
 	}
 
+	fixpoint valid_value(int value, option<int> val) {
+		switch(val) {
+			case none: return value == INVALID_VAL;
+			case some(v): return value == v;
+		}
+	}
+
+	fixpoint bool valid_mem_indexes(int l_child, int r_child, int mem_index,
+	                                 int has_l, int has_r,
+	                                 int m, option<int> lc, option<int> rc)
+	{
+		switch(lc) {
+			case none: return switch(rc) {
+				case none:
+					return has_l == 0 && has_r == 0;
+				case some(rm):
+					return has_l == 0 && has_r == 1 &&
+					       r_child != mem_index && r_child == rm &&
+					       mem_index == m;
+			};
+			case some(lm): return switch(rc) {
+				case none:
+					return has_l == 1 && has_r == 0 &&
+					       l_child != mem_index && l_child == lm &&
+					       mem_index == m;
+				case some(rm):
+					return has_l == 1 && has_r == 1 &&
+					       l_child != mem_index && r_child != mem_index &&
+					       l_child != r_child && l_child == lm &&
+					       r_child == rm && mem_index == m;
+			};
+		}
+	}
+
+	fixpoint bool valid_data_single(unsigned char c, list<int> ps, list<int> old_ps)
+	{
+		switch(ps) {
+			case nil: return true;
+			case cons(p, p0s):
+				return extract_bit_single(c, index_of(p, old_ps)) == p &&
+				       valid_data_single(c, p0s, old_ps);
+		}
+	}
+
+	fixpoint bool valid_data(list<unsigned char> data, list<int> ps, list<int> old_ps)
+	{
+		switch(ps) {
+			case nil: return true;
+			case cons(p, p0s):
+				return extract_bit(data, index_of(p, old_ps)) == p &&
+				       valid_data(data, p0s, old_ps);
+		}
+	}
+
 	fixpoint trie_t empty_trie(int max_i) {
 		return trie(empty, 0, max_i);
 	}
