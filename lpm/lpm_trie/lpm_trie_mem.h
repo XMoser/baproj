@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <limits.h>
 
 //@ #include <list.gh>
 //@ #include "arith.gh"
@@ -17,6 +18,7 @@
 #define LPM_PLEN_MAX		32
 #define INVALID_NODE_ID -1
 #define INVALID_VAL -1
+#define CHAR_BIT 8 //In limits.h, verifast does not see it
 
 #define min(a, b) ((a<b) ? (a) : (b))
 
@@ -239,26 +241,34 @@ struct lpm_trie_key {
 		return node_mem(none, 0, nil, none, none);
 	}
 
-	fixpoint node_t_mem node_set_l_child(node_mem_t node, int l_child) {
+	fixpoint node_mem_t node_set_l_child(node_mem_t node, int l_child) {
 		switch(node) {
 			case node_mem(lc, m, p, v, rc):
-				return node_mem(some(l_child), m, p, r, rc);
+				return node_mem(some(l_child), m, p, v, rc);
 		}
 	}
 
-	fixpoint node_t_mem node_set_r_child(node_mem_t node, int r_child) {
+	fixpoint node_mem_t node_set_r_child(node_mem_t node, int r_child) {
 		switch(node) {
 			case node_mem(lc, m, p, v, rc):
-				return node_mem(lc, m, p, r, some(r_child));
+				return node_mem(lc, m, p, v, some(r_child));
 		}
+	}
+
+	fixpoint int extract_bit_single(unsigned char c, int index) {
+		return (c & (1 << (7 - index)));
+	}
+
+	fixpoint int extract_bit(list<unsigned char> data, int index) {
+		return extract_bit_single(nth(index/8, data), index % 8);
 	}
 
 	fixpoint list<int> bits_from_char(char c, nat len) {
 		switch(len) {
 			case zero: return nil;
 			case succ(n):
-				return cons(extract_bit_single(c, n-1),
-				            bits_from_char(c, nat_of_int(n)));
+				return cons(extract_bit_single(c, int_of_nat(n)-1),
+				            bits_from_char(c, n));
 		}
 	}
 
@@ -555,11 +565,11 @@ int lpm_trie_node_alloc(struct lpm_trie *trie, int value);
 struct lpm_trie *lpm_trie_alloc(size_t max_entries);
 /*@ requires max_entries > 0 &*& max_entries <= IRANG_LIMIT &*&
              sizeof(struct lpm_trie_node) < MAX_NODE_SIZE; @*/
-/*@ ensures result == NULL ? true : trie_p(result, 0, max_entries, empty_trie(max_i)); @*/
+/*@ ensures result == NULL ? true : trie_p(result, 0, max_entries, empty_trie(max_entries)); @*/
 
-void trie_free(struct lpm_trie *trie);
-/*@ requires trie_p(trie, _, _); @*/
-/*@ ensures true; @*/
+// void trie_free(struct lpm_trie *trie);
+// /*@ requires trie_p(trie, _, _); @*/
+// /*@ ensures true; @*/
 
 bool extract_bit(const uint8_t *data, size_t index);
 /*@ requires data[0..LPM_DATA_SIZE] |-> _ &*&
@@ -568,22 +578,26 @@ bool extract_bit(const uint8_t *data, size_t index);
 
 size_t longest_prefix_match(const struct lpm_trie_node *node,
                             const struct lpm_trie_key *key);
-/*@ requires node_p(node, ?max_i) &*& key_p(key, ?p); @*/
-/*@ ensures node_p(node, max_i) &*& key_p(key, p); @*/
+/*@ requires node_p(node, ?max_i, ?n) &*& key_p(key, ?p); @*/
+/*@ ensures node_p(node, max_i, n) &*& key_p(key, p); @*/
 
 int trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
-/*@ requires trie_p(trie, ?n, ?max_i) &*& key_p(key) &*& n > 0; @*/
-/*@ ensures trie_p(trie, n, max_i) &*& key_p(key); @*/
+/*@ requires trie_p(trie, ?n, ?max_i, ?t) &*& key_p(key, ?p) &*& n > 0; @*/
+/*@ ensures trie_p(trie, n, max_i, t) &*& key_p(key, p); @*/
 
 int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int value);
-/*@ requires trie_p(trie, ?n1, ?max_i) &*& n1 < max_i &*&
-             key_p(key); @*/
-/*@ ensures trie_p(trie, ?n2, max_i) &*&
-            key_p(key); @*/
+/*@ requires trie_p(trie, ?n1, ?max_i, ?t) &*& n1 < max_i &*&
+             key_p(key, ?p); @*/
+/*@ ensures (result == -1 ?
+             trie_p(trie, _, max_i, t) :
+             trie_p(trie, _, max_i, lpm_trie_update(t, p, value)) ) &*&
+            key_p(key, p); @*/
 
 int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key);
-/*@ requires trie_p(trie, ?n, ?max_i) &*& n > 0 &*& key_p(key); @*/
-/*@ ensures trie_p(trie, _, max_i) &*& key_p(key); @*/
+/*@ requires trie_p(trie, ?n, ?max_i, ?t) &*& n > 0 &*& key_p(key, ?p); @*/
+/*@ ensures (result == -1 ?
+             trie_p(trie, _, max_i, t) :
+             trie_p(trie, _, max_i, lpm_trie_delete(t, p))) &*& key_p(key, p); @*/
 
 /**
  * fls - find last (most-significant) bit set
