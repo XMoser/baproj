@@ -11,21 +11,21 @@ ensures node_im_p(node);
     chars_to_integer((void*) &(node_s->l_child));
     chars_split((void*) node + sizeof(int), sizeof(int));
     chars_to_integer((void*) &(node_s->r_child));
+    // chars_split((void*) node + 2*sizeof(int), sizeof(int));
+    // chars_to_integer((void*) &(node_s->mem_index));
     chars_split((void*) node + 2*sizeof(int), sizeof(int));
-    chars_to_integer((void*) &(node_s->mem_index));
-    chars_split((void*) node + 3*sizeof(int), sizeof(int));
     chars_to_integer((void*) &(node_s->has_l_child));
-    chars_split((void*) node + 4*sizeof(int), sizeof(int));
+    chars_split((void*) node + 3*sizeof(int), sizeof(int));
     chars_to_integer((void*) &(node_s->has_r_child));
-    chars_split((void*) node + 5*sizeof(int), sizeof(uint32_t));
+    chars_split((void*) node + 4*sizeof(int), sizeof(uint32_t));
     chars_to_u_integer((void*) &(node_s->prefixlen));
-    chars_split((void*) node + 5*sizeof(int) + sizeof(uint32_t),
+    chars_split((void*) node + 4*sizeof(int) + sizeof(uint32_t),
                 sizeof(uint32_t));
     chars_to_u_integer((void*) &(node_s->flags));
-    chars_split((void*) node + 5*sizeof(int) + 2*sizeof(uint32_t),
+    chars_split((void*) node + 4*sizeof(int) + 2*sizeof(uint32_t),
                 sizeof(int));
     chars_to_integer((void*) &(node_s->value));
-    chars_split((void*) node + 5*sizeof(int) + 2*sizeof(uint32_t) +
+    chars_split((void*) node + 4*sizeof(int) + 2*sizeof(uint32_t) +
                 sizeof(int), LPM_DATA_SIZE*sizeof(uint8_t));
     close lpm_trie_node_l_child(node, _);
     close lpm_trie_node_r_child(node, _);
@@ -76,9 +76,9 @@ ensures chars((void*) node, sizeof(struct lpm_trie_node), ?chs);
 	open lpm_trie_node_r_child(node, _);
 	integer_to_chars((void*) &node->r_child);
 	chars_join(_node);
-	open lpm_trie_node_mem_index(node, _);
-	integer_to_chars((void*) &node->mem_index);
-	chars_join(_node);
+	// open lpm_trie_node_mem_index(node, _);
+	// integer_to_chars((void*) &node->mem_index);
+	// chars_join(_node);
 	open lpm_trie_node_has_l_child(node, _);
 	integer_to_chars((void*) &node->has_l_child);
 	chars_join(_node);
@@ -136,9 +136,9 @@ ensures chars((void*) node, sizeof(struct lpm_trie_node), ?cs);
     open lpm_trie_node_r_child(node, _);
     integer_to_chars((void*) &node->r_child);
     chars_join(_node);
-    open lpm_trie_node_mem_index(node, _);
-    integer_to_chars((void*) &node->mem_index);
-    chars_join(_node);
+    // open lpm_trie_node_mem_index(node, _);
+    // integer_to_chars((void*) &node->mem_index);
+    // chars_join(_node);
     open lpm_trie_node_has_l_child(node, _);
     integer_to_chars((void*) &node->has_l_child);
     chars_join(_node);
