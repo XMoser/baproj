@@ -55,24 +55,33 @@ struct lpm_trie_key {
 
 /*@
 	predicate trie_p(struct lpm_trie *trie, int n, int max, trie_t t) =
-		malloc_block_lpm_trie(trie) &*&
-		trie->root |-> ?r &*&
-		trie->n_entries |-> n &*&
-		n >= 0 &*&
-		(n == 0 ? true : r >= 0 &*& r < max) &*&
-		trie->max_entries |-> max &*&
-		max > 0 &*&
-		IRANG_LIMIT >= max &*&
-		trie->dchain |-> ?dchain &*&
-		double_chainp(?ch, dchain) &*&
-		dchain_index_range_fp(ch) == max &*&
-		dchain_high_fp(ch) <= 1 &*&
-		trie->node_mem_blocks |-> ?mem_blocks &*&
-		(void*)0 < ((void*)(mem_blocks)) &*&
-		(void*)(mem_blocks + max) <= (char*)UINTPTR_MAX &*&
-		malloc_block_chars((void*)mem_blocks,
-		                   (sizeof(struct lpm_trie_node) * max)) &*&
-		nodes_p(mem_blocks, max, max, ?ns);
+		switch(t) {
+			case trie(r, n, m): return
+			malloc_block_lpm_trie(trie) &*&
+			trie->root |-> ?root &*&
+			trie->n_entries |-> ?n_entries &*&
+			trie->max_entries |-> max &*&
+			trie->dchain |-> ?dchain &*&
+			trie->node_mem_blocks |-> ?mem_blocks &*&
+			malloc_block_chars((void*)mem_blocks,
+			(sizeof(struct lpm_trie_node) * max)) &*&
+			n_entries >= 0 n_entries == n &*&
+			(n_entries == 0 ? root == INVALID_NODE_ID :
+			                  root >= 0 &*& root < max) &*&
+			max > 0 &*& max == m &*&
+			IRANG_LIMIT >= max &*&
+			double_chainp(?ch, dchain) &*&
+			dchain_index_range_fp(ch) == max &*&
+			dchain_high_fp(ch) <= 1 &*&
+			(void*)0 < ((void*)(mem_blocks)) &*&
+			(void*)(mem_blocks + max) <= (char*)UINTPTR_MAX &*&
+			nodes_p(mem_blocks, max, max, ?ns) &*&
+			(root == INVALID_NODE_ID ? trie_in_list(r, none, ns) :
+			                           trie_in_list(r, some(root), ns)) &*&
+			(root == INVALID_NODE_ID ? unique_mem_indexes(trie_nodes(r, none, ns)) :
+			                           unique_mem_indexes(trie_nodes(r, some(root), ns)));						   
+
+		}
 
 	predicate node_im_p(struct lpm_trie_node *node) =
 		node->l_child |-> _ &*&
@@ -86,23 +95,35 @@ struct lpm_trie_key {
 		node->data[0..LPM_DATA_SIZE] |-> _;
 
 	predicate node_p(struct lpm_trie_node* node, int max_i, node_mem_t n) =
-		node->l_child |-> ?l &*&
-		node->r_child |-> ?r &*&
-		node->mem_index |-> ?m &*&
-		node->has_l_child |-> _ &*&
-		node->has_r_child |-> _ &*&
-		node->prefixlen |-> _ &*&
-		node->flags |-> _ &*&
-		node->value |-> _ &*&
-		node->data[0..LPM_DATA_SIZE] |-> _ &*&
-		l >= 0 &*& l < max_i &*&
-		r >= 0 &*& r < max_i &*&
-		m >= 0 &*& m < max_i;
+		switch(n) {
+			case node_mem(lc, m, p, v, rc): return
+				node->l_child |-> ?l_child &*&
+				node->r_child |-> ?r_child &*&
+				node->mem_index |-> ?mem_index &*&
+				node->has_l_child |-> ?has_l &*&
+				node->has_r_child |-> ?has_r &*&
+				node->prefixlen |-> ?prefixlen &*&
+				node->flags |-> ?flags &*&
+				node->value |-> ?value &*&
+				uchars((void") node->data, LPM_DATA_SIZE, ?chs) &*&
+				l >= 0 &*& l < max_i &*&
+				r >= 0 &*& r < max_i &*&
+				m >= 0 &*& m < max_i &*&
+				mem_index == m &*&
+				valid_children(l_child, r_child, has_l, has_r, lc, rc) == true &*&
+				prefixlen == length(p) &*&
+				valid_data(chs, p, p) &*&
+				valid_value(value, v) &*&
+				(value == INVALID_VAL ? (flags & LPM_TREE_NODE_FLAG_IM) :
+				                        (flags & LPM_TREE_NODE_FLAG_IM)) == true;
+		}
 
 	predicate key_p(struct lpm_trie_key *key, list<int> p) =
 		malloc_block_lpm_trie_key(key) &*&
-		key->prefixlen |-> _ &*&
-		key->data[0..LPM_DATA_SIZE] |-> _;
+		key->prefixlen |-> ?prefixlen &*&
+		uchars((void*) key->data, LPM_DATA_SIZE, ?chs) &*&
+		prefixlen == length(p) &*&
+		valid_data(chs, p, p) == true;
 
 	predicate nodes_im_p(struct lpm_trie_node *node, int count) =
 		count == 0 ?
@@ -225,10 +246,34 @@ struct lpm_trie_key {
 				case some(i): return switch((node_mem_t) nth(i, node_mems)) {
 					case node_mem(l_child, mem_index, prefix, value, r_child):
 						//Establish equivalence between node and node_mem here
-						return p == prefix && v == value &&
+						return p == prefix && v == value && mem_index == i &&
 						       trie_in_list(lc, l_child, node_mems) &&
 						       trie_in_list(rc, r_child, node_mems);
 				};
+			};
+		}
+	}
+
+	fixpoint list<node_mem_t> trie_nodes(node_t n, option<int> opt_i, list<node_mem_t> node_mems) {
+		switch(n) {
+			case empty: return nil;
+			case node(lc, p, v, rc): return switch(opt_i) {
+				case none: return nil;
+				case some(i): return switch((node_mem_t) nth(i, node_mems)) {
+					case node_mem(l_child, mem_index, prefix, value, r_child):
+						return append(trie_nodes(lc, l_child, node_mems),
+						              cons(nth(i, node_mems), trie_nodes(rc, r_child, node_mems)));
+				};
+			};
+		}
+	}
+
+	fixpoint bool unique_mem_indexes(list<node_mem_t> ns, list<int> ms) {
+		switch(ns) {
+			case nil: return true;
+			case cons(n, ns0): return switch((node_mem_t) n) {
+				case node_mem(lc, m, p, v, rc): return
+					distinct(cons(m, ms)) == true && unique_mem_indexes(ns0, cons(m, ms));
 			};
 		}
 	}
@@ -240,9 +285,8 @@ struct lpm_trie_key {
 		}
 	}
 
-	fixpoint bool valid_mem_indexes(int l_child, int r_child, int mem_index,
-	                                 int has_l, int has_r,
-	                                 int m, option<int> lc, option<int> rc)
+	fixpoint bool valid_children(int l_child, int r_child, int has_l, int has_r,
+	                             option<int> lc, option<int> rc)
 	{
 		switch(lc) {
 			case none: return switch(rc) {
@@ -250,19 +294,17 @@ struct lpm_trie_key {
 					return has_l == 0 && has_r == 0;
 				case some(rm):
 					return has_l == 0 && has_r == 1 &&
-					       r_child != mem_index && r_child == rm &&
-					       mem_index == m;
+					       r_child != mem_index && r_child == rm;
 			};
 			case some(lm): return switch(rc) {
 				case none:
 					return has_l == 1 && has_r == 0 &&
-					       l_child != mem_index && l_child == lm &&
-					       mem_index == m;
+					       l_child != mem_index && l_child == lm;
 				case some(rm):
 					return has_l == 1 && has_r == 1 &&
 					       l_child != mem_index && r_child != mem_index &&
 					       l_child != r_child && l_child == lm &&
-					       r_child == rm && mem_index == m;
+					       r_child == rm;
 			};
 		}
 	}
