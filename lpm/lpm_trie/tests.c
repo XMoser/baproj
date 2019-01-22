@@ -30,14 +30,14 @@ void print_node(struct lpm_trie_node *node, struct lpm_trie *trie)
 {
     printf("=============================\n");
 
-    int mem_index = node->mem_index;
-    printf("mem_index: %d\n", mem_index);
+    // int mem_index = node->mem_index;
+    // printf("mem_index: %d\n", mem_index);
 
-    int *value = node->value;
-    if(!node->value) {
+    int value = node->value;
+    if(node->value == INVALID_VAL) {
         printf("value: ---\n");
     } else {
-        int val = *(node->value);
+        int val = node->value;
         printf("value: %d\n", val);
     }
 
@@ -86,7 +86,7 @@ int test_update_elem()
     //Insert nodes
     printf("##### Inserting first node #####\n");
     int value_1 = 1;
-    int res = trie_update_elem(trie, key_1, &value_1);
+    int res = trie_update_elem(trie, key_1, value_1);
     if(res)
         goto out;
 
@@ -99,7 +99,7 @@ int test_update_elem()
 
     printf("##### Inserting second node ######\n");
     int value_2 = 2;
-    res = trie_update_elem(trie, key_2, &value_2);
+    res = trie_update_elem(trie, key_2, value_2);
     if(res)
         goto out;
 
@@ -114,7 +114,7 @@ int test_update_elem()
 
     printf("##### Inserting third node #####\n");
     int value_3 = 3;
-    res = trie_update_elem(trie, key_3, &value_3);
+    res = trie_update_elem(trie, key_3, value_3);
     if(res)
         goto out;
 
@@ -130,7 +130,7 @@ int test_update_elem()
 
     printf("##### Inserting fourth node #####\n");
     int value_4 = 4;
-    res = trie_update_elem(trie, key_4, &value_4);
+    res = trie_update_elem(trie, key_4, value_4);
     if(res)
         goto out;
 
@@ -170,11 +170,11 @@ int test_delete_elem()
     int value_3 = 3;
     int value_4 = 4;
 
-    int node_1_id = lpm_trie_node_alloc(trie, &value_1);
-    int node_2_id = lpm_trie_node_alloc(trie, &value_2);
-    int node_3_id = lpm_trie_node_alloc(trie, &value_3);
-    int node_4_id = lpm_trie_node_alloc(trie, &value_4);
-    int node_im_id = lpm_trie_node_alloc(trie, NULL);
+    int node_1_id = lpm_trie_node_alloc(trie, value_1);
+    int node_2_id = lpm_trie_node_alloc(trie, value_2);
+    int node_3_id = lpm_trie_node_alloc(trie, value_3);
+    int node_4_id = lpm_trie_node_alloc(trie, value_4);
+    int node_im_id = lpm_trie_node_alloc(trie, INVALID_VAL);
 
     struct lpm_trie_node *node_1 = pointer_from_int(node_1_id, trie);
     struct lpm_trie_node *node_2 = pointer_from_int(node_2_id, trie);
@@ -267,11 +267,11 @@ void test_lookup_elem()
     int value_3 = 3;
     int value_4 = 4;
 
-    int node_1_id = lpm_trie_node_alloc(trie, &value_1);
-    int node_2_id = lpm_trie_node_alloc(trie, &value_2);
-    int node_3_id = lpm_trie_node_alloc(trie, &value_3);
-    int node_4_id = lpm_trie_node_alloc(trie, &value_4);
-    int node_im_id = lpm_trie_node_alloc(trie, NULL);
+    int node_1_id = lpm_trie_node_alloc(trie, value_1);
+    int node_2_id = lpm_trie_node_alloc(trie, value_2);
+    int node_3_id = lpm_trie_node_alloc(trie, value_3);
+    int node_4_id = lpm_trie_node_alloc(trie, value_4);
+    int node_im_id = lpm_trie_node_alloc(trie, INVALID_VAL);
 
     struct lpm_trie_node *node_1 = pointer_from_int(node_1_id, trie);
     struct lpm_trie_node *node_2 = pointer_from_int(node_2_id, trie);
@@ -319,16 +319,16 @@ void test_lookup_elem()
     struct lpm_trie_key *key_3 = lpm_trie_key_alloc(32, key_data_3);
     struct lpm_trie_key *key_4 = lpm_trie_key_alloc(32, key_data_4);
 
-    int res_1 = *trie_lookup_elem(trie, key_1);
+    int res_1 = trie_lookup_elem(trie, key_1);
     printf("First result: %d\n", res_1);//2
 
-    int res_2 = *trie_lookup_elem(trie, key_2);
+    int res_2 = trie_lookup_elem(trie, key_2);
     printf("Second result: %d\n", res_2);//4
 
-    int res_3 = *trie_lookup_elem(trie, key_3);
+    int res_3 = trie_lookup_elem(trie, key_3);
     printf("Third result: %d\n", res_3);//3
 
-    int res_4 = *trie_lookup_elem(trie, key_4);
+    int res_4 = trie_lookup_elem(trie, key_4);
     printf("Fourths result: %d\n", res_4);//3
 
     free(key_4);

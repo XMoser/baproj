@@ -75,10 +75,10 @@ struct lpm_trie_key {
 			(void*)0 < ((void*)(mem_blocks)) &*&
 			(void*)(mem_blocks + max) <= (char*)UINTPTR_MAX &*&
 			nodes_p(mem_blocks, max, max, ?ns); // &*&
-			// (root == INVALID_NODE_ID ? trie_in_list(r, none, ns) :
-			//                            trie_in_list(r, some(root), ns)) &*&
-			// (root == INVALID_NODE_ID ? unique_mem_indexes(trie_nodes(r, none, ns)) :
-			//                            unique_mem_indexes(trie_nodes(r, some(root), ns)));
+			// (root == INVALID_NODE_ID ? trie_in_list(r, none, ns) == true :
+			//                            trie_in_list(r, some(root), ns) == true) &*&
+			// (root == INVALID_NODE_ID ? distinct(indexes(trie_nodes(r, none, ns))) == true :
+			//                            distinct(indexes(trie_nodes(r, some(root), ns))) == true);
 
 		//};
 
@@ -94,8 +94,8 @@ struct lpm_trie_key {
 		node->data[0..LPM_DATA_SIZE] |-> _;
 
 	predicate node_p(struct lpm_trie_node* node, int max_i, node_mem_t n) =
-		//switch(n) {
-		//	case node_mem(lc, p, v, rc): return
+		switch(n) {
+			case node_mem(lc, p, v, rc): return
 				node->l_child |-> ?l_child &*&
 				node->r_child |-> ?r_child &*&
 				// node->mem_index |-> ?mem_index &*&
@@ -106,16 +106,19 @@ struct lpm_trie_key {
 				node->value |-> ?value &*&
 				uchars((void*) node->data, LPM_DATA_SIZE, ?chs) &*&
 				l_child >= 0 &*& l_child < max_i &*&
-				r_child >= 0 &*& r_child < max_i; // &*&
+				r_child >= 0 &*& r_child < max_i &*&
 				// m >= 0 &*& m < max_i &*&
 				// mem_index == m &*&
-				// valid_children(l_child, r_child, has_l, has_r, lc, rc) == true &*&
+				//is_bit(has_l) == true &*&
+				//is_bit(has_r) == true &*&
+				valid_child(l_child, has_l, lc) == true &*&
+				valid_child(r_child, has_r, rc) == true;
 				// prefixlen == length(p) &*&
-				// valid_data(chs, p, p) &*&
-				// valid_value(value, v) &*&
+				// valid_data(chs, p, p) == true &*&
+				// valid_value(value, v) == true &*&
 				// (value == INVALID_VAL ? (flags & LPM_TREE_NODE_FLAG_IM) :
-				//                        (flags & LPM_TREE_NODE_FLAG_IM)) == true;
-		//};
+				//                         (flags & LPM_TREE_NODE_FLAG_IM)) == true;
+		};
 
 	predicate key_p(struct lpm_trie_key *key, list<int> p) =
 		malloc_block_lpm_trie_key(key) &*&
@@ -142,10 +145,10 @@ struct lpm_trie_key {
 /*@
 	lemma void node_layout_assumptions(struct lpm_trie_node *node);
 	requires true;
-	ensures sizeof(struct lpm_trie_node) == 5*sizeof(int) +
+	ensures sizeof(struct lpm_trie_node) == 4*sizeof(int) +
 	                                        2*sizeof(uint32_t) +
-	                                        LPM_DATA_SIZE*sizeof(uint8_t) +
-	                                        sizeof(int *) &*&
+											sizeof(int) +
+	                                        LPM_DATA_SIZE*sizeof(uint8_t) &*&
 	        (void*) &(node->l_child) + sizeof(int) ==
 	        (void*) &(node->r_child) &*&
 	        (void*) &(node->r_child) + sizeof(int) ==
@@ -160,7 +163,7 @@ struct lpm_trie_key {
 	        (void*) &(node->flags) &*&
 	        (void*) &(node->flags) + sizeof(uint32_t) ==
 	        (void*) &(node->value) &*&
-	        (void*) &(node->value) + sizeof(int*) ==
+	        (void*) &(node->value) + sizeof(int) ==
 	        (void*) node->data;
 @*/
 
@@ -234,6 +237,10 @@ struct lpm_trie_key {
 @*/
 
 /*@
+	fixpoint bool is_bit(int i) {
+		return i == 0 || i == 1;
+	}
+
 	fixpoint bool trie_in_list(node_t node, option<int> opt_i, list<node_mem_t> node_mems) {
 		switch(node) {
 			case empty: return switch(opt_i) {
@@ -277,6 +284,44 @@ struct lpm_trie_key {
 //		}
 //	}
 
+	fixpoint int node_l_child_int_fp(node_mem_t node) {
+		switch(node) {
+			case node_mem(lc, p, v, rc): return switch(lc) {
+				case none: return INVALID_NODE_ID;
+				case some(l): return l;
+			};
+		}
+	}
+
+	fixpoint option<int> node_l_child_fp(node_mem_t node) {
+		switch(node) {
+			case node_mem(lc, p, v, rc): return lc;
+		}
+	}
+
+	fixpoint option<int> node_r_child_fp(node_mem_t node) {
+		switch(node) {
+			case node_mem(lc, p, v, rc): return rc;
+		}
+	}
+
+	fixpoint int node_r_child_int_fp(node_mem_t node) {
+		switch(node) {
+			case node_mem(lc, p, v, rc): return switch(rc) {
+				case none: return INVALID_NODE_ID;
+				case some(r): return r;
+			};
+		}
+	}
+
+	fixpoint list<int> indexes(list<node_mem_t> nodes) {
+		return append(map(node_l_child_int_fp, nodes), map(node_r_child_int_fp, nodes));
+	}
+
+	fixpoint bool unique_indexes(list<int> ids) {
+		return distinct(ids) == true;
+	}
+
 	fixpoint bool valid_value(int value, option<int> val) {
 		switch(val) {
 			case none: return value == INVALID_VAL;
@@ -304,6 +349,13 @@ struct lpm_trie_key {
 					       l_child != r_child && l_child == lm &&
 					       r_child == rm;
 			};
+		}
+	}
+
+	fixpoint bool valid_child(int child, int has, option<int> c) {
+		switch(c) {
+			case none: return has == 0;
+			case some(cc): return has != 0 && child == cc;
 		}
 	}
 
@@ -341,6 +393,18 @@ struct lpm_trie_key {
 
 	fixpoint node_mem_t unalloced_node() {
 		return node_mem(none, nil, none, none);
+	}
+
+	fixpoint node_mem_t node_no_l_child(node_mem_t node) {
+		switch(node) {
+			case node_mem(lc, p, v, rc): return node_mem(none, p, v, rc);
+		}
+	}
+
+	fixpoint node_mem_t node_no_r_child(node_mem_t node) {
+		switch(node) {
+			case node_mem(lc, p, v, rc): return node_mem(lc, p, v, none);
+		}
 	}
 
 	fixpoint node_mem_t node_set_l_child(node_mem_t node, int l_child) {
@@ -704,39 +768,39 @@ static unsigned int fls(unsigned int x)
 /*@ requires true; @*/
 /*@ ensures true; @*/
 {
-//@ assume(false);
-	int r = 32;
+	//@ assume(false);
+	unsigned int r = 32;
 
 	if (!x)
 		return 0;
 	if (!(x & 0xffff0000u)) {
 		//@ bitand_limits(0x0000ffffu, x, nat_of_int(16));
 		//@ shiftleft_limits(0x0000ffffu & x, nat_of_int(16), nat_of_int(16));
-		x <<= 16;
+		x = (x & 0x0000ffffu) << 16;
 		r -= 16;
 	}
 	if (!(x & 0xff000000u)) {
 		//@ bitand_limits(0x00ffffffu, x, nat_of_int(24));
 		//@ shiftleft_limits(0x00ffffffu & x, nat_of_int(24), nat_of_int(8));
-		x <<= 8;
+		x = (x & 0x00ffffffu) << 8;
 		r -= 8;
 	}
 	if (!(x & 0xf0000000u)) {
 		//@ bitand_limits(0x0fffffffu, x, nat_of_int(28));
 		//@ shiftleft_limits(0x0fffffffu & x, nat_of_int(28), nat_of_int(4));
-		x <<= 4;
+		x = (x & 0x0fffffffu) << 4;
 		r -= 4;
 	}
 	if (!(x & 0xc0000000u)) {
 		//@ bitand_limits(0x1fffffffu, x, nat_of_int(30));
 		//@ shiftleft_limits(0x1fffffffu & x, nat_of_int(30), nat_of_int(2));
-		x <<= 2;
+		x = (x & 0x1fffffffu) << 2;
 		r -= 2;
 	}
 	if (!(x & 0x80000000u)) {
 		//@ bitand_limits(0x3fffffffu, x, nat_of_int(31));
 		//@ shiftleft_limits(0x3fffffffu & x, nat_of_int(31), nat_of_int(1));
-		x <<= 1;
+		x = (x & 0x3fffffffu) << 1;
 		r -= 1;
 	}
 	return r;
