@@ -18,7 +18,6 @@ int init_nodes_mem(const void *node_mem_blocks, size_t max_entries)
 /*@ ensures (result == 0 ? nodes_p(node_mem_blocks, max_entries, max_entries, ?ns) :
                            nodes_im_p(node_mem_blocks, max_entries)); @*/
 {
-	//@ assume(false);
 	struct lpm_trie_node *cur;
 	uint8_t *empty_data = malloc(sizeof(uint8_t) * LPM_DATA_SIZE);
 	if(!empty_data) {
@@ -70,7 +69,6 @@ struct lpm_trie *lpm_trie_alloc(size_t max_entries)
              sizeof(struct lpm_trie_node) < MAX_NODE_SIZE; @*/
 /*@ ensures result == NULL ? true : trie_p(result, 0, max_entries, empty_trie(max_entries)); @*/
 {
-	//@ assume(false);
 	if(max_entries == 0 ||
 	   max_entries > TRIE_SIZE_MAX / sizeof(struct lpm_trie_node))
         return NULL;
@@ -127,7 +125,6 @@ int lpm_trie_node_alloc(struct lpm_trie *trie, int value)
 /*@ ensures trie_p(trie, tn, max_i, t) &*&
             (result == INVALID_NODE_ID ? true : result >= 0 &*& result < max_i); @*/
 {
-	//@ assume(false);
 	//@ open trie_p(trie, tn, max_i, t);
 	int index;
 	//@ assert trie->dchain |-> ?dchain;
@@ -170,7 +167,6 @@ int node_free(int i, struct lpm_trie *trie)
              i >= 0 &*& i < max_i; @*/
 /*@ ensures trie_p(trie, n, max_i, t); @*/
 {
-	//@ assume(false);
 	//@ open trie_p(trie, n, max_i, t);
 	//@ assert trie->dchain |-> ?dchain;
 	//@ assert double_chainp(?ch, dchain);
@@ -205,7 +201,6 @@ bool extract_bit(const uint8_t *data, size_t index)
              index >= 0 &*& LPM_DATA_SIZE > index / 8; @*/
 /*@ ensures data[0..LPM_DATA_SIZE] |-> _;@*/
 {
-	//@ assume(false);
 	//show index > 0 => index/8 > 0;
 	//@ div_rem(index, 8);
 	//@ uchars_split(data, index/8);
@@ -221,7 +216,6 @@ size_t longest_prefix_match(const struct lpm_trie_node *node,
 /*@ requires node_p(node, ?max_i, ?n) &*& key_p(key, ?p); @*/
 /*@ ensures node_p(node, max_i, n) &*& key_p(key, p); @*/
 {
-	//@ assume(false);
 	size_t prefixlen = 0;
 	uint32_t last_set = 0;
 	size_t i;
@@ -292,7 +286,6 @@ int trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 /*@ requires trie_p(trie, ?tn, ?max_i, ?t) &*& key_p(key, ?p) &*& tn > 0; @*/
 /*@ ensures trie_p(trie, tn, max_i, t) &*& key_p(key, p); @*/
 {
-	//@ assume(false);
 	//@ open trie_p(trie, tn, max_i, t);
 	struct lpm_trie_node *node_base = trie->node_mem_blocks;
 	//struct lpm_trie_node *found = NULL;
@@ -405,19 +398,18 @@ int trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	return res;
 }
 
-int node_search(struct lpm_trie *trie, struct lpm_trie_key *key, int *left, int *right, int *parent_id, int *gparent_id)
+int node_search(struct lpm_trie *trie, struct lpm_trie_key *key, int *left, int *right, int *parent_id, int *gparent_id, size_t *matchlen)
 /*@ requires trie_p(trie, ?tn, ?max_i, ?t) &*& key_p(key, ?p) &*& tn > 0 &*&
-             integer(left, _) &*& integer(right, _) &*& integer(parent_id, _) &*& integer(gparent_id, _); @*/
+             integer(left, _) &*& integer(right, _) &*& integer(parent_id, _) &*& integer(gparent_id, _) &*& u_integer(matchlen, _); @*/
 /*@ ensures trie_p(trie, tn, max_i, t) &*& key_p(key, p) &*&
-            integer(left, _) &*& integer(right, _) &*& integer(parent_id, ?p_id) &*& integer(gparent_id, ?gp_id) &*&
+            integer(left, _) &*& integer(right, _) &*& integer(parent_id, ?p_id) &*& integer(gparent_id, ?gp_id) &*& u_integer(matchlen, _) &*&
             (result == INVALID_NODE_ID ? p_id >= 0 &*& p_id < max_i : result >= 0 &*& result < max_i); @*/
 {
-	//@ assume(false);
 	struct lpm_trie_node *node;
-	size_t matchlen = 0;
 	bool next_bit;
 	*parent_id = INVALID_NODE_ID;
 	*gparent_id = INVALID_NODE_ID;
+	*matchlen = 0;
 	//@ open trie_p(trie, tn, max_i, t);
 	int node_id = trie->root;
 	struct lpm_trie_node *node_base = trie->node_mem_blocks;
@@ -433,14 +425,14 @@ int node_search(struct lpm_trie *trie, struct lpm_trie_key *key, int *left, int 
 	              nodes_p(node_base + node_id+1, max_i - node_id-1, max_i, drop(node_id+1, ns))
 	              &*& key_p(key, p) &*& node_id >= 0 &*& node_id < max_i &*&
 	              integer(left, _) &*& integer(right, _) &*& integer(parent_id, _) &*&
-	              integer(gparent_id, _); @*/
+	              integer(gparent_id, _) &*& u_integer(matchlen, _); @*/
 	{
 		node = node_base + node_id;
-		matchlen = longest_prefix_match(node, key);
+		*matchlen = longest_prefix_match(node, key);
 
 		//@ open node_p(node, max_i, ?n1);
 		//@ open key_p(key, p);
-		if (node->prefixlen != matchlen ||
+		if (node->prefixlen != *matchlen ||
 		    node->prefixlen == key->prefixlen ||
 		    node->prefixlen == LPM_PLEN_MAX) {
 		    //@ close key_p(key, p);
@@ -507,7 +499,6 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int value)
              trie_p(trie, _, max_i, lpm_trie_update(t, p, value)) ) &*&
             key_p(key, p); @*/
 {
-	//@ assume(false);
 	struct lpm_trie_node *node;
 	struct lpm_trie_node *im_node = NULL;
 	struct lpm_trie_node *new_node = NULL;
@@ -581,7 +572,7 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int value)
 
 	//@ close trie_p(trie, tn+1, max_i, t);
 	//@ close key_p(key, p);
-	node_id = node_search(trie, key, &insert_left, &insert_right, &old_id, &gparent_id);
+	node_id = node_search(trie, key, &insert_left, &insert_right, &old_id, &gparent_id, &matchlen);
 
 	//@ open trie_p(trie, tn+1, max_i, t);
 	int max_int = (int) trie->max_entries;
@@ -927,7 +918,7 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	 * slot that contains it.
 	 */
 	//@ close key_p(key, p);
-	node_id = node_search(trie, key, &delete_left, &delete_right, &parent_id, &gparent_id);
+	node_id = node_search(trie, key, &delete_left, &delete_right, &parent_id, &gparent_id, &matchlen);
 	if(node_id == INVALID_NODE_ID) {
 		ret = -1;
 		goto out;
