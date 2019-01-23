@@ -11,8 +11,6 @@ ensures node_im_p(node);
     chars_to_integer((void*) &(node_s->l_child));
     chars_split((void*) node + sizeof(int), sizeof(int));
     chars_to_integer((void*) &(node_s->r_child));
-    // chars_split((void*) node + 2*sizeof(int), sizeof(int));
-    // chars_to_integer((void*) &(node_s->mem_index));
     chars_split((void*) node + 2*sizeof(int), sizeof(int));
     chars_to_integer((void*) &(node_s->has_l_child));
     chars_split((void*) node + 3*sizeof(int), sizeof(int));
@@ -35,7 +33,6 @@ ensures node_im_p(node);
     close lpm_trie_node_prefixlen(node, _);
     close lpm_trie_node_flags(node, _);
     close lpm_trie_node_value(node, _);
-    //close lpm_trie_node_data(node, _);
     close node_im_p(node);
 }
 
@@ -76,9 +73,6 @@ ensures chars((void*) node, sizeof(struct lpm_trie_node), ?chs);
 	open lpm_trie_node_r_child(node, _);
 	integer_to_chars((void*) &node->r_child);
 	chars_join(_node);
-	// open lpm_trie_node_mem_index(node, _);
-	// integer_to_chars((void*) &node->mem_index);
-	// chars_join(_node);
 	open lpm_trie_node_has_l_child(node, _);
 	integer_to_chars((void*) &node->has_l_child);
 	chars_join(_node);
@@ -136,9 +130,6 @@ ensures chars((void*) node, sizeof(struct lpm_trie_node), ?cs);
     open lpm_trie_node_r_child(node, _);
     integer_to_chars((void*) &node->r_child);
     chars_join(_node);
-    // open lpm_trie_node_mem_index(node, _);
-    // integer_to_chars((void*) &node->mem_index);
-    // chars_join(_node);
     open lpm_trie_node_has_l_child(node, _);
     integer_to_chars((void*) &node->has_l_child);
     chars_join(_node);
@@ -181,7 +172,6 @@ ensures chars((void*) first, int_of_nat(len)*sizeof(struct lpm_trie_node), ?cs);
             nodes_to_bytes(first + 1, n);
             node_to_bytes(first);
             chars_join((void*) first);
-            //close chars((void*) first, int_of_nat(len) * sizeof(struct lpm_trie_node), _);
 
     }
 }

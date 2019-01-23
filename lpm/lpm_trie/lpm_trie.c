@@ -383,11 +383,14 @@ int trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	return res;
 }
 
-int node_search(struct lpm_trie *trie, struct lpm_trie_key *key, int *left, int *right, int *parent_id, int *gparent_id, size_t *matchlen)
+int node_search(struct lpm_trie *trie, struct lpm_trie_key *key, int *left, int *right,
+                int *parent_id, int *gparent_id, size_t *matchlen)
 /*@ requires trie_p(trie, ?tn, ?max_i, ?t) &*& key_p(key, ?p) &*& tn > 0 &*&
-             integer(left, _) &*& integer(right, _) &*& integer(parent_id, _) &*& integer(gparent_id, _) &*& u_integer(matchlen, _); @*/
+             integer(left, _) &*& integer(right, _) &*& integer(parent_id, _) &*&
+             integer(gparent_id, _) &*& u_integer(matchlen, _); @*/
 /*@ ensures trie_p(trie, tn, max_i, t) &*& key_p(key, p) &*&
-            integer(left, _) &*& integer(right, _) &*& integer(parent_id, ?p_id) &*& integer(gparent_id, ?gp_id) &*& u_integer(matchlen, _) &*&
+            integer(left, _) &*& integer(right, _) &*& integer(parent_id, ?p_id) &*&
+            integer(gparent_id, ?gp_id) &*& u_integer(matchlen, _) &*&
             (result == INVALID_NODE_ID ? p_id >= 0 &*& p_id < max_i : result >= 0 &*& result < max_i); @*/
 {
 	struct lpm_trie_node *node;

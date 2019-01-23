@@ -85,7 +85,6 @@ struct lpm_trie_key {
 	predicate node_im_p(struct lpm_trie_node *node) =
 		node->l_child |-> _ &*&
 		node->r_child |-> _ &*&
-		// node->mem_index |-> _ &*&
 		node->has_l_child |-> _ &*&
 		node->has_r_child |-> _ &*&
 		node->prefixlen |-> _ &*&
@@ -98,7 +97,6 @@ struct lpm_trie_key {
 			case node_mem(lc, p, v, rc): return
 				node->l_child |-> ?l_child &*&
 				node->r_child |-> ?r_child &*&
-				// node->mem_index |-> ?mem_index &*&
 				node->has_l_child |-> ?has_l &*&
 				node->has_r_child |-> ?has_r &*&
 				node->prefixlen |-> ?prefixlen &*&
@@ -107,10 +105,6 @@ struct lpm_trie_key {
 				uchars((void*) node->data, LPM_DATA_SIZE, ?chs) &*&
 				l_child >= 0 &*& l_child < max_i &*&
 				r_child >= 0 &*& r_child < max_i &*&
-				// m >= 0 &*& m < max_i &*&
-				// mem_index == m &*&
-				//is_bit(has_l) == true &*&
-				//is_bit(has_r) == true &*&
 				valid_child(l_child, has_l, lc) == true &*&
 				valid_child(r_child, has_r, rc) == true;
 				// prefixlen == length(p) &*&
@@ -152,8 +146,6 @@ struct lpm_trie_key {
 	        (void*) &(node->l_child) + sizeof(int) ==
 	        (void*) &(node->r_child) &*&
 	        (void*) &(node->r_child) + sizeof(int) ==
-	        // (void*) &(node->mem_index) &*&
-	        // (void*) &(node->mem_index) + sizeof(int) ==
 	        (void*) &(node->has_l_child) &*&
 	        (void*) &(node->has_l_child) + sizeof(int) ==
 	        (void*) &(node->has_r_child) &*&
@@ -273,16 +265,6 @@ struct lpm_trie_key {
 			};
 		}
 	}
-
-//	fixpoint bool unique_mem_indexes(list<node_mem_t> ns, list<int> ms) {
-//		switch(ns) {
-//			case nil: return true;
-//			case cons(n, ns0): return switch((node_mem_t) n) {
-//				case node_mem(lc, p, v, rc): return
-//					distinct(cons(m, ms)) == true && unique_mem_indexes(ns0, cons(m, ms));
-//			};
-//		}
-//	}
 
 	fixpoint int node_l_child_int_fp(node_mem_t node) {
 		switch(node) {
@@ -447,8 +429,6 @@ struct lpm_trie_key {
 @*/
 
 /*@
-	fixpoint int next_index(trie_t trie); //TODO
-
 	fixpoint int match_length_aux(list<int> p1, list<int> p2, int acc){
 		switch(p1) {
 			case nil: return acc;
@@ -724,10 +704,6 @@ struct lpm_trie *lpm_trie_alloc(size_t max_entries);
 /*@ requires max_entries > 0 &*& max_entries <= IRANG_LIMIT &*&
              sizeof(struct lpm_trie_node) < MAX_NODE_SIZE; @*/
 /*@ ensures result == NULL ? true : trie_p(result, 0, max_entries, empty_trie(max_entries)); @*/
-
-// void trie_free(struct lpm_trie *trie);
-// /*@ requires trie_p(trie, _, _); @*/
-// /*@ ensures true; @*/
 
 bool extract_bit(const uint8_t *data, size_t index);
 /*@ requires data[0..LPM_DATA_SIZE] |-> _ &*&
