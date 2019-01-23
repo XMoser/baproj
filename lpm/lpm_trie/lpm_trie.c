@@ -49,7 +49,6 @@ int init_nodes_mem(const void *node_mem_blocks, size_t max_entries)
 		//@ open node_im_p(node_mem_blocks + (max_entries-1-i)*sizeof(struct lpm_trie_node));
 		cur->l_child = 0;
 		cur->r_child = 0;
-//		cur->mem_index = i;
 		cur->has_l_child = 0;
 		cur->has_r_child = 0;
 		cur->prefixlen = 0;
@@ -185,23 +184,11 @@ int node_free(int i, struct lpm_trie *trie)
 
 }
 
-//void trie_free(struct lpm_trie *trie)
-///*@ requires trie_p(trie); @*/
-///*@ ensures true; @*/
-//{
-//	//@ open trie_p(trie);
-//	//@ nodes_to_bytes(trie->node_mem_blocks, nat_of_int(trie->max_entries));
-//	free((void*) trie->node_mem_blocks);
-//	free(trie->dchain);
-//	free(trie);
-//}
-
 bool extract_bit(const uint8_t *data, size_t index)
 /*@ requires data[0..LPM_DATA_SIZE] |-> _ &*&
              index >= 0 &*& LPM_DATA_SIZE > index / 8; @*/
 /*@ ensures data[0..LPM_DATA_SIZE] |-> _;@*/
 {
-	//show index > 0 => index/8 > 0;
 	//@ div_rem(index, 8);
 	//@ uchars_split(data, index/8);
 	//@ open uchars(data + index/8, LPM_DATA_SIZE - index/8, _);
@@ -240,7 +227,6 @@ size_t longest_prefix_match(const struct lpm_trie_node *node,
 		//@ bitxor_limits(node->data[i], key->data[i], nat_of_int(8));
 		uint32_t nxk_i = (uint32_t) node->data[i] ^ key->data[i];
 		last_set = fls(nxk_i);
-		//TODO: add condition to last_set on 1 byte
 		if(last_set > 8) {
 			//@ close uchars((void*) node->data + i, LPM_DATA_SIZE - i, _);
 			//@ close uchars((void*) key->data + i, LPM_DATA_SIZE - i, _);
@@ -288,7 +274,6 @@ int trie_lookup_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 {
 	//@ open trie_p(trie, tn, max_i, t);
 	struct lpm_trie_node *node_base = trie->node_mem_blocks;
-	//struct lpm_trie_node *found = NULL;
 	struct lpm_trie_node *node;
 	int found_id = INVALID_NODE_ID;
 	int node_id = INVALID_NODE_ID;
@@ -699,7 +684,6 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int value)
 	//@ open key_p(key, p);
 	if (matchlen == key->prefixlen && LPM_DATA_SIZE > matchlen / 8) {
 		next_bit = extract_bit(node->data, matchlen);
-		//int node_mem_index = node->mem_index;
 		//@ close node_p(node, max_i, n1);
 		//@ close_nodes(node_base, node_id, max_i, n1s);
 		if(!next_bit){
@@ -794,14 +778,12 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int value)
 	//@ assert nodes_p(node_base, max_i, max_i, ?n4s);
 	//@ extract_node(node_base, node_id);
 	//@ open node_p(node, max_i, ?n3);
-	// int node_mem_index = node->mem_index;
 
 	//@ close node_p(node, max_i, n3);
 	//@ close_nodes(node_base, node_id, max_i, n4s);
 	new_node = node_base + new_node_id;
 	//@ extract_node(node_base, new_node_id);
 	//@ open node_p(new_node, max_i, ?n_new);
-	// int new_node_mem_index = new_node->mem_index;
 
 	//@ close node_p(new_node, max_i, n_new);
 	//@ close_nodes(node_base, new_node_id, max_i, n4s);
@@ -811,9 +793,9 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int value)
 		next_bit = extract_bit(key->data, matchlen);
 		if(next_bit) {
 			im_node->has_l_child = 1;
-			im_node->l_child = node_id; //node_mem_index;
+			im_node->l_child = node_id;
 			im_node->has_r_child = 1;
-			im_node->r_child = new_node_id; //new_node_mem_index;
+			im_node->r_child = new_node_id;
 			/*@ close node_p(im_node, max_i,
 			                 node_set_l_child(node_set_r_child(n_im1, new_node_id),
 			                 node_id)); @*/
@@ -822,9 +804,9 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int value)
 				                   node_id)); @*/
 		} else {
 			im_node->has_l_child = 1;
-			im_node->l_child = new_node_id; //new_node_mem_index;
+			im_node->l_child = new_node_id;
 			im_node->has_r_child = 1;
-			im_node->r_child = node_id; //node_mem_index;
+			im_node->r_child = node_id;
 			/*@ close node_p(im_node, max_i,
 			                 node_set_r_child(node_set_l_child(n_im1, new_node_id),
 			                 node_id)); @*/
@@ -872,13 +854,11 @@ out:
 			//@ assert new_node_id >= 0 &*& new_node_id < max_i;
 			res = node_free(new_node_id, trie);
 		}
-		//node_free(new_node, trie);
 
 		if (im_node_id != INVALID_NODE_ID) {
 			//@ assert im_node_id >= 0 &*& im_node_id < max_i;
 			res = node_free(im_node_id, trie);
 		}
-		//node_free(im_node, trie);
 	}
 
 	return ret;
