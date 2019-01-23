@@ -744,7 +744,6 @@ static unsigned int fls(unsigned int x)
 /*@ requires true; @*/
 /*@ ensures true; @*/
 {
-	//@ assume(false);
 	unsigned int r = 32;
 
 	if (!x)
