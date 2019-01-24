@@ -254,7 +254,7 @@ int tbl_update_elem(struct tbl *_tbl, struct key *_key, uint8_t value)
     _tbl->n_entries ++;
 
     //If prefixlen is smaller than 24, simply store the value in tbl_24, in
-    //entries indexed from data[0...2] up to data[0].data[1].255
+    //entries indexed from data[0].data[1].data[2] up to data[0].data[1].255
     if(prefixlen < 24){
         size_t first_index = tbl_24_extract_first_index(data);
         size_t last_index = tbl_24_extract_last_index(_key);

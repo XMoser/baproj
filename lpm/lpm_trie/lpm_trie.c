@@ -736,7 +736,7 @@ int trie_update_elem(struct lpm_trie *trie, struct lpm_trie_key *key, int value)
 	//@ close node_p(node, max_i, n1);
 	//@ close_nodes(node_base, node_id, max_i, n1s);
 	//@ close trie_p(trie, _, max_i, t);
-	im_node_id = lpm_trie_node_alloc(trie, NULL);
+	im_node_id = lpm_trie_node_alloc(trie, INVALID_VAL);
 	if (im_node_id == INVALID_NODE_ID) {
 		ret = -1;
 		//@ close key_p(key, p);
@@ -1005,6 +1005,19 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 					//@ close node_p(gparent, max_i, n_gparent);
 					//@ close_nodes(node_base, gparent_id, max_i, ns);
 				}
+			} else {
+				//There is no grand-parent, so the intermediary node is the root
+				//@ extract_node(node_base, parent_id);
+				if(delete_left) {
+					//@ open node_p(parent, max_i, n_parent);
+					trie->root = parent->r_child;
+					//@ close node_p(parent, max_i, n_parent);
+				} else if(delete_right) {
+					//@ open node_p(parent, max_i, n_parent);				
+					trie->root = parent->l_child;
+					//@ close node_p(parent, max_i, n_parent);					
+				}
+				//@ close_nodes(node_base, parent_id, max_i, ns);
 			}
 
 			//@ close trie_p(trie, _, max_i, lpm_trie_delete(t, p));
@@ -1012,6 +1025,7 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 			if(!res) {
 				ret = -2;
 				//@ close key_p(key, p);
+				printf("first\n");
 				goto out;
 			}
 			//@ assert node_id >= 0 &*& node_id < max_i;
@@ -1019,6 +1033,7 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 			if(!res) {
 				ret = -2;
 				//@ close key_p(key, p);
+				printf("second\n");
 				goto out;
 			}
 			//@ close key_p(key, p);
@@ -1098,6 +1113,7 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 	//@ assert node_id >= 0 &*& node_id < max_i;
 	res = node_free(node_id, trie);
 	if(!res) {
+		printf("third\n");
 		ret = -2;
 		goto out;
 	}
