@@ -263,10 +263,11 @@ int tbl_update_elem(struct tbl *_tbl, struct key *_key, uint8_t value)
         //these entries don't have a longer prefix associated with them
         for(int i = first_index; i <= last_index; i++){
             if(!tbl_24_entry_flag(tbl_24[i]) &&
-                tbl_24_entry_plen(tbl_24[i]) <= prefixlen)
+                tbl_24_entry_plen(tbl_24[i]) <= prefixlen) {
                 tbl_24[i] = value;
                 //record the length of the prefix associated with the entry
                 tbl_24[i] = tbl_24_entry_put_plen(tbl_24[i], prefixlen);
+            }
         }
     } else {
         //If the prefixlen is not smaller than 24, we have to store the value

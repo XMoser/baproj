@@ -63,7 +63,7 @@ struct lpm_trie_node *pointer_from_int(int index, struct lpm_trie *trie)
     return trie->node_mem_blocks + index;
 }
 
-void update_trie()
+void update_trie(uint8_t max_val)
 {
     size_t plen = 0;
     uint8_t data_0 = 0;
@@ -78,7 +78,7 @@ void update_trie()
 
     for(uint8_t i = 1; i <= 8; i++) {
         plen = i;
-        for(uint8_t j = 0; j < (1 << (i-1)); j++) {
+        for(uint8_t j = 0; j < (1 << (i-1)) && value < max_val; j++) {
             data_0 |= (j << (8-i));
             uint8_t data[4] = {data_0, 0, 0, 0};
             t_key->prefixlen = plen;
@@ -108,7 +108,7 @@ void update_trie()
 
     for(uint8_t i = 1; i <= 8; i++) {
         plen = i;
-        for(uint8_t j = 0; j < (1 << (i-1)); j++) {
+        for(uint8_t j = 0; j < (1 << (i-1)) && value < max_val; j++) {
             data_0 |= (j << (8-i));
             uint8_t data[4] = {data_0, 0, 0, 0};
             t_key->prefixlen = plen;
@@ -130,7 +130,7 @@ void update_trie()
 
     for(uint8_t i = 1; i <= 8; i++) {
         plen = i;
-        for(uint8_t j = 0; j < (1 << (i-1)); j++) {
+        for(uint8_t j = 0; j < (1 << (i-1)) && value < max_val; j++) {
             data_0 |= (j << (8-i));
             uint8_t data[4] = {data_0, 0, 0, 0};
             t_key->prefixlen = plen;
@@ -156,7 +156,7 @@ void update_trie()
 
 }
 
-void update_tbl()
+void update_tbl(uint8_t max_val)
 {
     size_t plen = 0;
     uint8_t data_0 = 0;
@@ -171,7 +171,7 @@ void update_tbl()
 
     for(uint8_t i = 1; i <= 8; i++) {
         plen = i;
-        for(uint8_t j = 0; j < (1 << (i-1)); j++) {
+        for(uint8_t j = 0; j < (1 << (i-1)) && value < max_val; j++) {
             data_0 |= (j << (8-i));
             uint8_t data[4] = {data_0, 0, 0, 0};
             key->prefixlen = plen;
@@ -195,15 +195,13 @@ void update_tbl()
         printf("performed %d iterations of table update in %ld microseconds\n", value, delta_us);
     }
 
-    clock_gettime(CLOCK_REALTIME, &end);
-
     value = 0;
     data_0 = 0;
     clock_gettime(CLOCK_REALTIME, &start);
 
     for(uint8_t i = 1; i <= 8; i++) {
         plen = i;
-        for(uint8_t j = 0; j < (1 << (i-1)); j++) {
+        for(uint8_t j = 0; j < (1 << (i-1)) && value < max_val; j++) {
             data_0 |= (j << (8-i));
             uint8_t data[4] = {data_0, 0, 0, 0};
             key->prefixlen = plen;
@@ -219,10 +217,41 @@ void update_tbl()
 
     printf("performed %d iterations of table lookup in %ld microseconds\n", value, delta_us);
 
+    value = 0;
+    data_0 = 0;
+    clock_gettime(CLOCK_REALTIME, &start);
+
+    for(uint8_t i = 1; i <= 8; i++) {
+        plen = i;
+        for(uint8_t j = 0; j < (1 << (i-1)) && value < max_val; j++) {
+            data_0 |= (j << (8-i));
+            uint8_t data[4] = {data_0, 0, 0, 0};
+            key->prefixlen = plen;
+            memcpy(key->data, data, LPM_DATA_SIZE);
+            value ++;
+            tbl_res = tbl_delete_elem(tbl, key);
+            if(tbl_res)
+                break;
+            data_0 = 0;
+        }
+        if(tbl_res)
+            break;
+    }
+
+    clock_gettime(CLOCK_REALTIME, &end);
+    delta_us = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_nsec - start.tv_nsec) / 1000;
+
+    if(tbl_res) {
+        printf("something went wrong after %d iterations\n", value);
+    } else {
+        printf("performed %d iterations of table delete in %ld microseconds\n", value, delta_us);
+    }
 }
 
 void main()
 {
-    update_trie();
-    update_tbl();
+    for(int i = 128; i < 256; i++) {
+        update_trie(i);
+        update_tbl(i);
+    }
 }
