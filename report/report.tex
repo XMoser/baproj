@@ -283,4 +283,29 @@ exists, is promoted up the tree to take the place of the intermediary node.
 Initial tree: \Tree [.0/1,1 [.00/2,IM {000/3,3}  {001/3,4} ] ]
 delete(000/3): \Tree [.0/1,1 {001/3,4} ]
 \bigbreak
+\section{Result evaluation}
+The proposed trie LPM implementation has been shown to be completely crash-free and
+a foundation has been laid for a potential full functional proof, by indicating some
+of the invariants that would have to be preserved throughout execution. Only one of
+these invariants has been added to the final code and can serve as an example of
+how this work could be expanded on. \par
+Showing crash-freedom required adding roughly 900 lines of annotations to the
+about 750 lines of c code making up the implementation. The formal specification
+represents 238 lines of code in the verifast language and adding the one invariant
+that has been shown to hold required 80 additional lines of verifast code. \par
+Overall, showing crash-freedom increased the total amount of code by a factor of
+more than 2. \par
+\subsection{Performance evaluation}
+The following comparison of performance between trie LPM and dir-24-8 is based on
+the proposed trie LPM implementation and a basic implementation of the dir-24-8
+algorithm written as part of this project. The data is obtained by performing 255
+iterations of update with keys of growing prefix length from 1 to 8, then 255
+iterations of lookup with the same keys in the same order and finally 255 iterations
+of delete with the same keys in the same order. \par
+The expectation is for the performance to be roughly the same for all three trie
+LPM functions, for the performance of the dir-24-8 lookup function to be much better
+than the trie LPM lookup and for both the performances of the dir-24-8 update
+and delete functions to be much worse than the trie LPM update and lookup functions,
+as inserting entries in order of growing prefix length represents a worst-case
+scenario for the dir-24-8 algorithm. \par
 \end{document}

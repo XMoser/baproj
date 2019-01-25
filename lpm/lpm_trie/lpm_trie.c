@@ -151,7 +151,6 @@ int lpm_trie_node_alloc(struct lpm_trie *trie, int value)
 	}
 
 	node->value = value;
-	//node->mem_index = index;
 	node->has_l_child = 0;
 	node->has_r_child = 0;
 
@@ -1013,9 +1012,9 @@ int trie_delete_elem(struct lpm_trie *trie, struct lpm_trie_key *key)
 					trie->root = parent->r_child;
 					//@ close node_p(parent, max_i, n_parent);
 				} else if(delete_right) {
-					//@ open node_p(parent, max_i, n_parent);				
+					//@ open node_p(parent, max_i, n_parent);
 					trie->root = parent->l_child;
-					//@ close node_p(parent, max_i, n_parent);					
+					//@ close node_p(parent, max_i, n_parent);
 				}
 				//@ close_nodes(node_base, parent_id, max_i, ns);
 			}
