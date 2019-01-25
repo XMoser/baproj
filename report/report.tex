@@ -12,9 +12,12 @@
 \section{Introduction}
 LPM is a common problem with applications in many areas, most notably it is at the
 core of IP routers, using it to determine which entry of their routing tables should
-be used to direct incoming packets. In this context, verifying an LPM implementation
+be used to direct incoming packets. Some of these applications are sensitive and
+need to provide certain guarantees, including crash-freedom and functional correctness,
+which would typically be achieved through verification. \par
+In this context, verifying an LPM implementation
 would be a part of the verification process of many applications. The aim of this
-work is to provide a verified LPM implementation to be used as a building block of
+work is to provide a crash-free LPM implementation to be used as a building block of
 verified applications, using the verifast program verifier for c.
 \section{Choice of implementation}
 The first part of this work was to decide on an LPM implementation that would best
@@ -307,5 +310,19 @@ LPM functions, for the performance of the dir-24-8 lookup function to be much be
 than the trie LPM lookup and for both the performances of the dir-24-8 update
 and delete functions to be much worse than the trie LPM update and lookup functions,
 as inserting entries in order of growing prefix length represents a worst-case
-scenario for the dir-24-8 algorithm. \par
+scenario for the dir-24-8 algorithm.
+\bigbreak
+trie LPM update: 261 microseconds.\par
+trie LPM lookup: 230 microseconds.\par
+trie LPM delete: 218 microseconds.\par
+dir-24-8 update: 452077 microseconds.\par
+dir-24-8 lookup: 19 microseconds.\par
+dir-24-8 delete: 3177591 microseconds.
+\bigbreak
+The results generally conform to the expectations. The only unexpected aspect is
+the very bad performance of the delete function. This is probably due to the
+inefficiency of the specific implementation used in part and also to the necessity
+to update a significant number of entries as we delete entries with short prefix
+lengths. This performance can probably be expected to be better on a fully optimized
+implementation of the dir-24-8 algorithm.
 \end{document}

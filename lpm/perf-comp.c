@@ -262,6 +262,8 @@ void trie_lookups(FILE *f)
 
     struct timespec start, end;
 
+    fprintf(f, "plen depth time\n");
+
     for(uint8_t i = 1; i <= 8; i++) {
         plen = i;
         for(uint8_t j = 0; j < (1 << (i-1)); j++) {
@@ -275,7 +277,7 @@ void trie_lookups(FILE *f)
                 break;
             data_0 = 0;
         }
-        for(int j = 1; j <= 32; j++) {
+        for(int j = 1; j <= 8; j++) {
             uint8_t data[4] = {0, 0, 0, 0};
             t_key->prefixlen = j;
             memcpy(t_key->data, data, LPM_DATA_SIZE);
@@ -283,7 +285,7 @@ void trie_lookups(FILE *f)
             lookup_res = trie_lookup_elem(trie, t_key);
             clock_gettime(CLOCK_REALTIME, &end);
             delta_us = (end.tv_sec - start.tv_sec) * 1000000000 + (end.tv_nsec - start.tv_nsec);
-            fprintf(f, "prefix length: %d, depth: %d, time (ns): %ld\n", j, i, delta_us);
+            fprintf(f, "%d %d %ld\n", j, i, delta_us);
         }
         if(trie_res)
             break;
@@ -298,11 +300,13 @@ void tbl_lookups(FILE *f)
     int trie_res = 0;
     int lookup_res = 0;
     uint64_t delta_us;
-    struct lpm_trie_key *key = malloc(sizeof(struct key));
+    struct key *key = malloc(sizeof(struct key));
     size_t max_entries = 256;
     struct tbl *tbl = tbl_allocate(max_entries);
 
     struct timespec start, end;
+
+    fprintf(f, "plen n_entr time\n");
 
     for(uint8_t i = 1; i <= 8; i++) {
         plen = i;
@@ -315,15 +319,15 @@ void tbl_lookups(FILE *f)
             trie_res = tbl_update_elem(tbl, key, value);
             data_0 = 0;
         }
-        for(int j = 1; j <= 32; j++) {
+        for(int j = 1; j <= 8; j++) {
             uint8_t data[4] = {0, 0, 0, 0};
             key->prefixlen = j;
             memcpy(key->data, data, LPM_DATA_SIZE);
             clock_gettime(CLOCK_REALTIME, &start);
-            lookup_res = trie_lookup_elem(tbl, key);
+            lookup_res = tbl_lookup_elem(tbl, key);
             clock_gettime(CLOCK_REALTIME, &end);
             delta_us = (end.tv_sec - start.tv_sec) * 1000000000 + (end.tv_nsec - start.tv_nsec);
-            fprintf(f, "prefix length: %d, n_entries: %d, time (ns): %ld\n", j, value, delta_us);
+            fprintf(f, "%d %d %ld\n", j, value, delta_us);
         }
     }
 }
@@ -333,13 +337,21 @@ void main()
     update_trie(255);
     update_tbl(255);
 
-    FILE *f = fopen("results.txt", "w");
-    if (f == NULL)
+    /*
+    FILE *trie_f = fopen("trie_results.dat", "w");
+    if (trie_f == NULL)
     {
         printf("Error opening file!\n");
         exit(1);
     }
-    trie_lookups(f);
-    tbl_lookups(f);
+    FILE *tbl_f = fopen("tbl_results.dat", "w");
+    if (tbl_f == NULL)
+    {
+        printf("Error opening file!\n");
+        exit(1);
+    }
+    trie_lookups(trie_f);
+    tbl_lookups(tbl_f);
+    */
 
 }
